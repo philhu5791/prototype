@@ -1,0 +1,55 @@
+package edu.sdstate.eastweb.prototype.scheduler;
+
+import edu.sdstate.eastweb.prototype.*;
+import edu.sdstate.eastweb.prototype.Projection.*;
+
+public final class SchedulerTestProgram {
+    private static ProjectInfo makeDebugProject() {
+        return new ProjectInfo(
+                "Michael's test",
+                new DataDate(1, 4, 2011),
+                "watermask/rec_watermask",
+                "dem/dem_ngp",
+                new Projection(
+                        ProjectionType.ALBERS_EQUAL_AREA,
+                        ResamplingType.NEAREST_NEIGHBOR,
+                        Datum.NAD83,
+                        1000,
+                        0.0,
+                        0.0,
+                        43.0,
+                        47.0,
+                        0.0,
+                        -102.0,
+                        0.0,
+                        0.0,
+                        45.0
+                ),
+                new ModisTile[] {
+                    //                    new ModisTile(9, 4),
+                    new ModisTile(10, 4),
+                    new ModisTile(11, 4)
+                    //                    new ModisTile(12, 4),
+                    //                    new ModisTile(9, 5),
+                    //                    new ModisTile(10, 5),
+                    //                    new ModisTile(11, 5)
+                },
+                new ZonalSummary[] {
+                    new ZonalSummary(
+                            "NGP FIPS",
+                            "shapefile/NGP_AEA.shp",
+                            "FIPS"
+                    )
+                },
+                true
+        );
+    }
+
+    public static void main(String[] args) {
+        final ProjectInfo project = makeDebugProject();
+
+        /* final Scheduler scheduler = */ new LocalScheduler(new ProjectInfo[] { project } );
+
+        // This should explicitly wait for the scheduler to report completion ...
+    }
+}

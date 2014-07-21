@@ -1,0 +1,48 @@
+import sys
+
+import arcpy
+from arcpy.sa import *
+
+import indicator_util
+
+arcpy.env.overwriteOutput = True
+
+_, arcpy.env.workspace, daytimeLST, elevation, eto, shapefiles, correctedLSTOutputs, etfOutputs, etaOutputs = sys.argv
+
+shapefiles = shapefiles.split(';')
+correctedLSTOutputs = correctedLSTOutputs.split(';')
+etfOutputs = etfOutputs.split(';')
+etaOutputs = etaOutputs.split(';')
+
+arcpy.CheckOutExtension("Spatial")
+
+print("Setting LST NoData value...")
+daytimeLST = Times(daytimeLST, 1) # Makes it compute statistics
+daytimeLST = SetNull(daytimeLST, daytimeLST, """"Value" = 0""")
+
+print("Calculating corrected LST...")
+daytimeLST = Times(daytimeLST, 0.02)
+elevation = Times(elevation, 0.0065)
+
+correctedLST = Plus(daytimeLST, elevation)
+
+print("Obtaining hot and cold values...")
+thot = float(arcpy.GetRasterProperties_management(correctedLST, "MAXIMUM").getOutput(0))
+tcold = float(arcpy.GetRasterProperties_management(correctedLST, "MINIMUM").getOutput(0))
+
+print("Calculating ETf...")
+etf = Minus(thot, correctedLST)
+etf = Divide(etf, thot-tcold)
+
+print("Calculating ETa...")
+eta = Times(etf, eto)
+
+print("Clipping...")
+correctedLSTResults = indicator_util.clip(correctedLST, shapefiles)
+etfResults = indicator_util.clip(etf, shapefiles)
+etaResults = indicator_util.clip(eta, shapefiles)
+
+print("Saving...")
+indicator_util.save(correctedLSTResults, correctedLSTOutputs)
+indicator_util.save(etfResults, etfOutputs)
+indicator_util.save(etaResults, etaOutputs)

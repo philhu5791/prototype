@@ -1,0 +1,35 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<classpath>
+	<classpathentry kind="src" path="src"/>
+	<classpathentry kind="lib" path="lib/swt/swt.jar" sourcepath="lib/swt/src.zip"/>
+	<classpathentry kind="lib" path="lib/htmlparser/htmlparser-1.3.1.jar">
+		<attributes>
+			<attribute name="javadoc_location" value="jar:platform:/resource/prototype/lib/htmlparser/htmlparser-1.3.1-javadoc.jar!/"/>
+		</attributes>
+	</classpathentry>
+	<classpathentry kind="lib" path="lib/commons-io/commons-io-2.0.1.jar">
+		<attributes>
+			<attribute name="javadoc_location" value="jar:platform:/resource/prototype/lib/commons-io/commons-io-2.0.1-javadoc.jar!/"/>
+		</attributes>
+	</classpathentry>
+	<classpathentry kind="lib" path="lib/commons-net/commons-net-3.0.jar">
+		<attributes>
+			<attribute name="javadoc_location" value="jar:platform:/resource/prototype/lib/commons-net/commons-net-3.0-javadoc.jar!/"/>
+		</attributes>
+	</classpathentry>
+	<classpathentry kind="lib" path="lib/commons-compress/commons-compress-1.1.jar">
+		<attributes>
+			<attribute name="javadoc_location" value="jar:platform:/resource/prototype/lib/commons-compress/commons-compress-1.1-javadoc.jar!/"/>
+		</attributes>
+	</classpathentry>
+	<classpathentry kind="con" path="org.eclipse.jdt.launching.JRE_CONTAINER"/>
+	<classpathentry kind="con" path="org.eclipse.jdt.junit.JUNIT_CONTAINER/4"/>
+	<classpathentry kind="lib" path="lib/gdal/gdal.jar" sourcepath="C:/Users/general/Desktop/EASTWeb/prototype-workspace/prototype/lib/gdal/gdal.jar"/>
+	<classpathentry kind="lib" path="lib/jface/org.eclipse.core.commands_3.6.0.I20100512-1500.jar"/>
+	<classpathentry kind="lib" path="lib/jface/org.eclipse.equinox.common_3.6.0.v20100503.jar"/>
+	<classpathentry kind="lib" path="lib/jface/org.eclipse.jface_3.6.2.M20110210-1200.jar"/>
+	<classpathentry kind="lib" path="lib/jface/org.eclipse.osgi_3.6.2.R36x_v20110210.jar"/>
+	<classpathentry kind="lib" path="lib/jface/org.eclipse.ui.workbench_3.6.2.M20110210-1200.jar"/>
+	<classpathentry kind="lib" path="lib/postgresql-jdbc/postgresql-9.0-801.jdbc4.jar"/>
+	<classpathentry kind="output" path="bin"/>
+</classpath>

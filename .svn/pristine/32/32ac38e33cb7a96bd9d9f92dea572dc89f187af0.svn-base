@@ -1,0 +1,191 @@
+package edu.sdstate.eastweb.prototype.scheduler;
+
+import java.util.List;
+import java.util.concurrent.PriorityBlockingQueue;
+
+import edu.sdstate.eastweb.prototype.DataDate;
+import edu.sdstate.eastweb.prototype.ProjectInfo;
+import edu.sdstate.eastweb.prototype.download.EtoArchive;
+import edu.sdstate.eastweb.prototype.download.ModisId;
+import edu.sdstate.eastweb.prototype.download.ModisProduct;
+import edu.sdstate.eastweb.prototype.download.cache.*;
+import edu.sdstate.eastweb.prototype.indices.EnvironmentalIndex;
+import edu.sdstate.eastweb.prototype.scheduler.framework.*;
+import edu.sdstate.eastweb.prototype.scheduler.tasks.*;
+
+public class Queue {
+
+    private enum Priority {
+        CacheCheck,
+        ModisTileCheck,
+        Download,
+        Reprojection,
+        IndexCalculation,
+        ZonalSummary,
+        DatabaseInsert
+    }
+
+    private PriorityBlockingQueue<QueueEntry> mQueue =
+        new PriorityBlockingQueue<QueueEntry>();
+
+    public void enqueue(QueueEntry entry) {
+        mQueue.add(entry);
+    }
+
+    public QueueEntry dequeue() throws InterruptedException {
+        return mQueue.take();
+    }
+
+    /**
+     * Enqueues a check date cache task.
+     */
+    public void enqueueModisCheckDateCache(ModisProduct product, DataDate startDate,
+            Action<DateCache> continuation) {
+        enqueue(new CallableQueueEntry<DateCache>(
+                Priority.CacheCheck.ordinal(),
+                new UpdateModisDateCacheTask(product, startDate),
+                continuation
+        ));
+    }
+
+    /**
+     * Enqueues a check tile cache task.
+     */
+    public void enqueueModisCheckTileCache(ModisProduct product, DataDate date,
+            Action<ModisTileCache> continuation) {
+        enqueue(new CallableQueueEntry<ModisTileCache>(
+                Priority.ModisTileCheck.ordinal(),
+                new UpdateModisTileCacheTask(product, date),
+                continuation
+        ));
+    }
+
+    /**
+     * Enqueues a download task.
+     */
+    public void enqueueModisDownload(ModisId modisId, Runnable continuation) {
+        enqueue(new RunnableQueueEntry(
+                Priority.Download.ordinal(),
+                new DownloadModisTask(modisId),
+                continuation
+        ));
+    }
+
+    /**
+     * Enqueues a check archive cache task.
+     */
+    public void enqueueEToCheckArchiveCache(DataDate startDate,
+            Action<EtoArchiveCache> continuation) {
+        enqueue(new CallableQueueEntry<EtoArchiveCache>(
+                Priority.CacheCheck.ordinal(),
+                new UpdateEtoArchiveCacheTask(startDate),
+                continuation
+        ));
+    }
+
+    /**
+     * Enqueues a download task.
+     */
+    public void enqueueEToDownload(EtoArchive archive, Action<List<DataDate>> continuation) {
+        enqueue(new CallableQueueEntry<List<DataDate>>(
+                Priority.Download.ordinal(),
+                new DownloadEtoTask(archive),
+                continuation
+        ));
+    }
+
+    /**
+     * Enqueues a check date cache task.
+     */
+    public void enqueueTRMMCheckDateCache(DataDate startDate, Action<DateCache> continuation) {
+        enqueue(new CallableQueueEntry<DateCache>(
+                Priority.CacheCheck.ordinal(),
+                new UpdateTrmmDateCacheTask(startDate),
+                continuation
+        ));
+    }
+
+    /**
+     * Enqueues a download task.
+     */
+    public void enqueueTRMMDownload(DataDate date, Runnable continuation) {
+        enqueue(new RunnableQueueEntry(
+                Priority.Download.ordinal(),
+                new DownloadTrmmTask(date),
+                continuation
+        ));
+    }
+
+    /**
+     * Enqueues a MODIS reprojection task.
+     */
+    public void enqueueReprojectModis(ProjectInfo project, ModisProduct product,
+            DataDate date, Runnable continuation) {
+        enqueue(new RunnableQueueEntry(
+                Priority.Reprojection.ordinal(),
+                new ReprojectModisTask(project, product, date),
+                continuation
+        ));
+    }
+
+    /**
+     * Enqueues a TRMM reprojection task.
+     */
+    public void enqueueReprojectTrmm(ProjectInfo project, DataDate date, Runnable continuation) {
+        enqueue(new RunnableQueueEntry(
+                Priority.Reprojection.ordinal(),
+                new ReprojectTrmmTask(project, date),
+                continuation
+        ));
+    }
+
+    /**
+     * Enqueues an ETo reprojection task.
+     */
+    public void enqueueReprojectEto(ProjectInfo project, DataDate date,
+            Runnable continuation) {
+        enqueue(new RunnableQueueEntry(
+                Priority.Reprojection.ordinal(),
+                new ReprojectEtoTask(project, date),
+                continuation
+        ));
+    }
+
+    /**
+     * Enqueues an index calculation task.
+     */
+    public void enqueueCalculateIndex(ProjectInfo project, EnvironmentalIndex index,
+            DataDate date, Runnable continuation)
+    {
+        enqueue(new RunnableQueueEntry(
+                Priority.IndexCalculation.ordinal(),
+                new CalculateIndexTask(project, index, date),
+                continuation
+        ));
+    }
+
+    /**
+     * Enqueues a zonal summary task.
+     */
+    public void enqueueCalculateZonalStatistics(ProjectInfo project, EnvironmentalIndex index,
+            DataDate date, Runnable continuation) {
+        enqueue(new RunnableQueueEntry(
+                Priority.ZonalSummary.ordinal(),
+                new CalculateZonalStatisticsTask(project, index, date),
+                continuation
+        ));
+    }
+
+    /**
+     * Enqueues a database insert task.
+     */
+    public void enqueueUploadResults(ProjectInfo project, EnvironmentalIndex index,
+            DataDate date, Runnable continuation) {
+        enqueue(new RunnableQueueEntry(
+                Priority.DatabaseInsert.ordinal(),
+                new UploadResultsTask(project, index, date),
+                continuation
+        ));
+    }
+
+}

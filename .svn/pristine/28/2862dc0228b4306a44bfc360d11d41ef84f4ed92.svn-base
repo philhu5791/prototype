@@ -1,0 +1,260 @@
+package edu.sdstate.eastweb.prototype.scheduler.tasks;
+
+import java.io.*;
+import java.util.*;
+
+import org.apache.commons.io.FileUtils;
+import edu.sdstate.eastweb.prototype.*;
+import edu.sdstate.eastweb.prototype.download.*;
+import edu.sdstate.eastweb.prototype.indices.*;
+import edu.sdstate.eastweb.prototype.reprojection.*;
+import edu.sdstate.eastweb.prototype.scheduler.framework.RunnableTask;
+import edu.sdstate.eastweb.prototype.util.FileHelper;
+
+// TODO: The CalculateIndexTask class could use some cleanup -- there are duplicated checks, etc.
+
+/**
+ * 
+ * @author Michael VanBemmel
+ * @author Isaiah Snell-Feikema
+ */
+public final class CalculateIndexTask implements RunnableTask {
+    private final ProjectInfo mProject;
+    private final EnvironmentalIndex mIndex;
+    private final DataDate mDate;
+
+    public CalculateIndexTask(ProjectInfo project, EnvironmentalIndex index, DataDate date) {
+        mProject = project;
+        mIndex = index;
+        mDate = date;
+    }
+
+    private File getMetadataFile(String shapeFile) throws ConfigReadException {
+        return DirectoryLayout.getIndexMetadata(mProject, mIndex, mDate, shapeFile);
+    }
+
+    private IndexMetadata makeMetadata(String shapeFile) throws IOException {
+        final List<ModisReprojectedMetadata> modis = new ArrayList<ModisReprojectedMetadata>();
+        for (ModisProduct product : getModisProducts()) {
+            modis.add(ModisReprojectedMetadata.fromFile(
+                    DirectoryLayout.getModisReprojectedMetadata(mProject, product, mDate)
+            ));
+        }
+
+        final List<TrmmReprojectedMetadata> trmm = new ArrayList<TrmmReprojectedMetadata>();
+        if (getUsesTrmm()) {
+            trmm.add(TrmmReprojectedMetadata.fromFile(
+                    DirectoryLayout.getTrmmReprojectedMetadata(mProject, mDate)
+            ));
+        }
+
+        final List<EtoReprojectedMetadata> eto = new ArrayList<EtoReprojectedMetadata>();
+        if (getUsesEto()) {
+            eto.add(EtoReprojectedMetadata.fromFile(
+                    DirectoryLayout.getEtoReprojectedMetadata(mProject, mDate)
+            ));
+        }
+
+        final long timestamp = new Date().getTime();
+
+        return new IndexMetadata(modis, trmm, eto, shapeFile, timestamp);
+    }
+
+    private boolean getCanSkipShapeFile(String shapeFile) {
+        try {
+            return IndexMetadata.fromFile(getMetadataFile(shapeFile)).equalsIgnoreTimestamp(makeMetadata(shapeFile));
+        } catch (IOException e) {
+            return false;
+        }
+    }
+
+    public List<String> getNeededShapeFiles() {
+        final List<String> list = new ArrayList<String>();
+
+        for (String shapeFile : mProject.getShapeFiles()) {
+            if (!getCanSkipShapeFile(shapeFile)) {
+                list.add(shapeFile);
+            }
+        }
+
+        return list;
+    }
+
+    @Override
+    public boolean getCanSkip() {
+        for (String shapeFile : mProject.getShapeFiles()) {
+            if (!getCanSkipShapeFile(shapeFile)) {
+                return false;
+            }
+        }
+
+        return true;
+    }
+
+
+    private File makeWorkspace() throws IOException {
+        final File workspace = File.createTempFile("arcpy", null);
+        FileUtils.forceDelete(workspace);
+        FileUtils.forceMkdir(workspace);
+        return workspace;
+    }
+
+    private List<ModisProduct> getModisProducts() {
+        switch (mIndex) {
+        case LST_DAY:
+        case LST_NIGHT:
+        case LST_MEAN:
+        case ETA:
+            return Arrays.asList(ModisProduct.LST);
+
+        case NDVI:
+        case EVI:
+        case NDWI5:
+        case NDWI6:
+        case SAVI:
+            return Arrays.asList(ModisProduct.NBAR);
+
+        case TRMM:
+            return Collections.emptyList();
+
+        default:
+            throw new IllegalArgumentException();
+        }
+    }
+
+    private boolean getUsesTrmm() {
+        return mIndex == EnvironmentalIndex.TRMM;
+    }
+
+    private boolean getUsesEto() {
+        return mIndex == EnvironmentalIndex.ETA;
+    }
+
+    private IndexCalculator makeCalculator(File workspace) throws IOException, ConfigReadException { // TODO: clean up!
+        // Common paths
+        final File settingsDir = DirectoryLayout.getSettingsDirectory(mProject);
+        final File watermask = new File(settingsDir, mProject.getWatermask());
+
+        final String[] shapeFilenames = getNeededShapeFiles().toArray(new String[0]);
+        final File[] shapeFiles = new File[shapeFilenames.length];
+        final File[] outputs = new File[shapeFilenames.length];
+        for (int i=0; i<shapeFilenames.length; i++) {
+            shapeFiles[i] = new File(DirectoryLayout.getSettingsDirectory(mProject), shapeFilenames[i]);
+            outputs[i] = DirectoryLayout.getIndex(mProject, mIndex, mDate, shapeFilenames[i]);
+            FileUtils.forceMkdir(outputs[i].getParentFile());
+        }
+
+        final File red = DirectoryLayout.getModisReprojectedBand(
+                mProject, ModisProduct.NBAR, mDate, "Nadir_Reflectance_Band1");
+        final File nir = DirectoryLayout.getModisReprojectedBand(
+                mProject, ModisProduct.NBAR, mDate, "Nadir_Reflectance_Band2");
+        final File daytime = DirectoryLayout.getModisReprojectedBand(
+                mProject, ModisProduct.LST, mDate, "LST_Day_1km");
+
+        switch (mIndex) {
+        case LST_DAY:
+        case LST_NIGHT:
+        case LST_MEAN:
+            final File nighttime = DirectoryLayout.getModisReprojectedBand(
+                    mProject, ModisProduct.LST, mDate, "LST_Night_1km");
+
+            // Ignore [outputs] and build all three output arrays
+            final File[] dayOutputs = new File[shapeFiles.length];
+            final File[] nightOutputs = new File[shapeFiles.length];
+            final File[] meanOutputs = new File[shapeFiles.length];
+            for (int i=0; i<shapeFiles.length; i++) {
+                dayOutputs[i] = DirectoryLayout.getIndex(
+                        mProject, EnvironmentalIndex.LST_DAY, mDate, shapeFilenames[i]);
+                nightOutputs[i] = DirectoryLayout.getIndex(
+                        mProject, EnvironmentalIndex.LST_NIGHT, mDate, shapeFilenames[i]);
+                meanOutputs[i] = DirectoryLayout.getIndex(
+                        mProject, EnvironmentalIndex.LST_MEAN, mDate, shapeFilenames[i]);
+            }
+
+            return new LstCalculator(workspace, daytime, nighttime, watermask, shapeFiles,
+                    dayOutputs, meanOutputs, nightOutputs);
+
+        case NDVI:
+            return new NdviCalculator(workspace, red, nir, watermask, shapeFiles, outputs);
+
+        case EVI:
+            final File blue = DirectoryLayout.getModisReprojectedBand(
+                    mProject, ModisProduct.NBAR, mDate, "Nadir_Reflectance_Band3");
+            return new EviCalculator(workspace, red, nir, blue, watermask, shapeFiles, outputs);
+
+        case NDWI5:
+            final File swir = DirectoryLayout.getModisReprojectedBand(
+                    mProject, ModisProduct.NBAR, mDate, "Nadir_Reflectance_Band5");
+            return new Ndwi5Calculator(workspace, nir, swir, watermask, shapeFiles, outputs);
+
+        case NDWI6:
+            final File swir2 = DirectoryLayout.getModisReprojectedBand(
+                    mProject, ModisProduct.NBAR, mDate, "Nadir_Reflectance_Band6");
+            return new Ndwi6Calculator(workspace, nir, swir2, watermask, shapeFiles, outputs);
+
+        case SAVI:
+            return new SaviCalculator(workspace, red, nir, watermask, shapeFiles, outputs);
+
+        case ETA:
+
+            final File elevation = new File(settingsDir, mProject.getElevation());
+            final File eto = DirectoryLayout.getEtoReprojected(mProject, mDate);
+
+            final File[] correctedLSTOutputs = new File[shapeFiles.length];
+            final File[] etfOutputs = new File[shapeFiles.length];
+            for (int i=0; i<shapeFiles.length; i++) {
+                correctedLSTOutputs[i] = new File(
+                        workspace, "clst" + i);
+                etfOutputs[i] = new File(
+                        workspace, "etf" + i);
+            }
+
+            return new EtaCalculator(workspace, daytime, elevation, eto, shapeFiles,
+                    correctedLSTOutputs, etfOutputs, outputs);
+
+        case TRMM:
+            final File trmm = DirectoryLayout.getTrmmReprojected(mProject, mDate);
+            return new TrmmCalculator(workspace, trmm, shapeFiles, outputs);
+
+        default:
+            throw new IllegalArgumentException();
+        }
+    }
+
+    @Override
+    public void run() throws Exception {
+        final File workspace = makeWorkspace();
+        try {
+            final IndexCalculator calculator = makeCalculator(workspace);
+            calculator.compute();
+        } finally {
+            FileUtils.deleteQuietly(workspace);
+        }
+
+        // Write metadata files
+        for (String shapeFile : getNeededShapeFiles()) {
+            final File metadataFile = getMetadataFile(shapeFile);
+            FileUtils.forceMkdir(metadataFile.getParentFile());
+            makeMetadata(shapeFile).toFile(metadataFile);
+        }
+    }
+
+    @Override
+    public String getName() {
+        return String.format(
+                "Calculate index: project=\"%s\", index=%s, date=%s",
+                mProject.getName(),
+                mIndex,
+                mDate.toCompactString()
+        );
+    }
+
+    @Override
+    public List<String> getOutputs() throws IOException {
+        List<String> outputs = FileHelper.listAllFilenames(
+                DirectoryLayout.getIndexFolder(mProject, mIndex, mDate)
+        );
+
+        return FileHelper.getRelativeFilenames(Config.getInstance().getRootDirectory(), outputs);
+    }
+}

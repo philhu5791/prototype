@@ -1,0 +1,109 @@
+package edu.sdstate.eastweb.prototype.zonalstatistics;
+
+import java.io.*;
+import java.util.*;
+import org.apache.commons.io.FileUtils;
+import org.w3c.dom.*;
+import edu.sdstate.eastweb.prototype.Python;
+import edu.sdstate.eastweb.prototype.Python.PythonException;
+import edu.sdstate.eastweb.prototype.util.XmlUtils;
+
+public class ZonalStatisticsArcpyImpl implements ZonalStatistics {
+    private static final String ROW_ELEMENT_NAME = "Row";
+    private static final String FIELD_VALUE_ATTRIBUTE_NAME = "fieldValue";
+    private static final String COUNT_ATTRIBUTE_NAME = "count";
+    private static final String SUM_ATTRIBUTE_NAME = "sum";
+    private static final String MEAN_ATTRIBUTE_NAME = "mean";
+    private static final String STDEV_ATTRIBUTE_NAME = "stdev";
+
+    private static File createTempDirectory() throws IOException {
+        final File file = File.createTempFile("EASTWeb", "wksp");
+        FileUtils.forceDelete(file);
+        FileUtils.forceMkdir(file);
+        return file;
+    }
+
+    @Override
+    public void computeZonalStats(File inRaster, File inShapefile,
+            String field, File outTable) throws IOException, PythonException {
+        final File workspaceDir = createTempDirectory();
+        try {
+            Python.run("python/zonal.py", workspaceDir.getAbsolutePath(),
+                    inShapefile.getAbsolutePath(), field, inRaster.getAbsolutePath(),
+                    outTable.getAbsolutePath());
+        } finally {
+            FileUtils.deleteQuietly(workspaceDir);
+        }
+    }
+
+    public static final class SummaryRow {
+        private final String mFieldValue;
+        private final double mCount;
+        private final double mSum;
+        private final double mMean;
+        private final double mStdev;
+
+        public SummaryRow(String fieldValue, double count, double sum, double mean, double stdev) {
+            mFieldValue = fieldValue;
+            mCount = count;
+            mSum = sum;
+            mMean = mean;
+            mStdev = stdev;
+        }
+
+        public String getFieldValue() {
+            return mFieldValue;
+        }
+
+        public double getCount() {
+            return mCount;
+        }
+
+        public double getSum() {
+            return mSum;
+        }
+
+        public double getMean() {
+            return mMean;
+        }
+
+        public double getStdev() {
+            return mStdev;
+        }
+    }
+
+    public SummaryRow[] readSummaryTable(String fieldName, File table)
+    throws IOException, PythonException
+    {
+        final byte[] bytes = Python.runForOutput("python/get_summary.py", fieldName,
+                table.getAbsolutePath());
+        final ByteArrayInputStream bais = new ByteArrayInputStream(bytes);
+
+        final Document document = XmlUtils.parse(bais);
+        final Element root = document.getDocumentElement();
+
+        final List<SummaryRow> rows = new ArrayList<SummaryRow>();
+        final NodeList rowElements = root.getElementsByTagName(ROW_ELEMENT_NAME);
+        for (int i = 0; i < rowElements.getLength(); ++i) {
+            final Element rowElement = (Element)rowElements.item(i);
+            final String fieldValue = rowElement.getAttribute(FIELD_VALUE_ATTRIBUTE_NAME);
+            final double count = Double.parseDouble(rowElement.getAttribute(COUNT_ATTRIBUTE_NAME));
+            final double sum = Double.parseDouble(rowElement.getAttribute(SUM_ATTRIBUTE_NAME));
+            final double mean = Double.parseDouble(rowElement.getAttribute(MEAN_ATTRIBUTE_NAME));
+            final double stdev = Double.parseDouble(rowElement.getAttribute(STDEV_ATTRIBUTE_NAME));
+
+            rows.add(new SummaryRow(fieldValue, count, sum, mean, stdev));
+        }
+        return rows.toArray(new SummaryRow[0]);
+    }
+
+    public static void main(String[] args) throws Exception {
+        final ZonalStatistics zs = new ZonalStatisticsArcpyImpl();
+        zs.computeZonalStats(
+                /* inRaster */      new File("E:\\mvanbem\\EastWeb\\data\\ndvi"),
+                /* inShapefile */   new File("E:\\mvanbem\\EastWeb\\data\\NGP_AEA.shp"),
+                /* field */         "FIPS",
+                /* outTable */      new File("C:\\Users\\mvanbem\\Desktop\\out\\zonal_table.dbf")
+        );
+    }
+}

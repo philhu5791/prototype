@@ -1,0 +1,27 @@
+package edu.sdstate.eastweb.prototype.util;
+
+import org.gdal.gdal.gdal;
+import org.gdal.ogr.ogr;
+
+public class GdalUtils {
+    private GdalUtils() {
+    }
+
+    /**
+     * All GDAL operations should be done while holding a lock on this object.
+     * GDAL is "not competely thread-safe", so this may be critical.
+     */
+    public static final Object lockObject = new Object();
+
+    private static boolean sRegistered = false;
+
+    public static void register() {
+        synchronized (lockObject) {
+            if (!sRegistered) {
+                ogr.RegisterAll();
+                gdal.AllRegister();
+                sRegistered = true;
+            }
+        }
+    }
+}

@@ -1,0 +1,61 @@
+package edu.sdstate.eastweb.prototype.util;
+
+import java.io.File;
+import java.util.ArrayList;
+import java.util.List;
+
+public class FileHelper {
+
+    public static String getRelativeFilename(String root, String filename) {
+        File rootDir = new File(root);
+        File file = new File(filename);
+
+        return rootDir.toURI().relativize(file.toURI()).getPath();
+    }
+
+    public static List<String> getRelativeFilenames(String root, List<String> filenames) {
+        List<String> relative = new ArrayList<String>();
+
+        for (String filename : filenames) {
+            relative.add(getRelativeFilename(root, filename));
+        }
+
+        return relative;
+    }
+
+    @SuppressWarnings("unchecked")
+    public static List<File> listAllFiles(File file) {
+        List<Object> list = new ArrayList<Object>();
+        listAll(file, list, false);
+        return (List<File>)(List<?>)list;
+    }
+
+    @SuppressWarnings("unchecked")
+    public static List<String> listAllFilenames(File file) {
+        List<Object> list = new ArrayList<Object>();
+        listAll(file, list, true);
+        return (List<String>)(List<?>)list;
+    }
+
+    private static void listAll(File file, List<Object> list, boolean filename) {
+        if (file.isDirectory()) {
+            String[] children = file.list();
+            for (int i=0; i<children.length; i++) {
+                listAll(new File(file, children[i]), list, filename);
+            }
+        } else {
+            if (filename) {
+                list.add(file.getAbsolutePath());
+            } else {
+                list.add(file);
+            }
+        }
+    }
+
+    public static void main(String args[]) {
+        for (String string : listAllFilenames(new File("C:\\Users\\isaiah\\Desktop\\eastweb-data\\projects\\test_08_10_2011\\reprojected\\modis-lst\\2011\\153"))) {
+            System.out.println(string);
+        }
+    }
+
+}

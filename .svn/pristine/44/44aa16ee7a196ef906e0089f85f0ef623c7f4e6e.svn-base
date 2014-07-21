@@ -1,0 +1,25 @@
+package edu.sdstate.eastweb.prototype.scheduler.local;
+
+import edu.sdstate.eastweb.prototype.ProjectInfo;
+import edu.sdstate.eastweb.prototype.scheduler.Scheduler;
+
+public class LocalScheduler extends Scheduler {
+
+    public LocalScheduler(ProjectInfo[] projects) {
+        super(projects);
+    }
+
+    @Override
+    public void run() {
+        super.run();
+
+        int processors = Runtime.getRuntime().availableProcessors();
+        for (int i=0; i<processors; i++) {
+            LocalWorker worker = new LocalWorker(mQueue, this);
+            Thread thread = new Thread(worker);
+            thread.start();
+            mThreads.add(thread);
+        }
+    }
+
+}

@@ -1,0 +1,60 @@
+package edu.sdstate.eastweb.prototype.scheduler;
+
+import edu.sdstate.eastweb.prototype.scheduler.framework.Task;
+
+public abstract class QueueEntry implements Comparable<QueueEntry> {
+
+    public enum Type {
+        SKIP_CHECK,
+        ACTUAL_TASK
+    }
+
+    protected Type mType;
+    protected final int mPriority;
+    protected int mFailures;
+    protected final Task mTask;
+    protected final Object mContinuation;
+
+    public QueueEntry(Type type, int priority, Task task, Object continuation) {
+        mType = type;
+        mPriority = priority;
+        mTask = task;
+        mContinuation = continuation;
+    }
+
+    @Override
+    public int compareTo(QueueEntry other) {
+        int diff = mType.ordinal() - other.mType.ordinal();
+        if (diff != 0) {
+            return diff;
+        }
+
+        return mPriority - other.mPriority;
+    }
+
+    public abstract boolean shouldTerminate();
+
+    public Type getType() {
+        return mType;
+    }
+
+    public void setType(Type type) {
+        mType = type;
+    }
+
+    public Task getTask() {
+        return mTask;
+    }
+
+    public abstract boolean getCanSkip();
+    public abstract void doContinuation() throws Exception;
+
+    public int getFailures() {
+        return mFailures;
+    }
+
+    public void incrementFailures() {
+        mFailures++;
+    }
+
+}

@@ -1,0 +1,160 @@
+package edu.sdstate.eastweb.prototype.download;
+
+import java.io.*;
+import java.net.*;
+import java.util.*;
+import java.util.regex.*;
+import java.util.zip.GZIPInputStream;
+import org.apache.commons.io.FileUtils;
+import org.apache.commons.net.ftp.*;
+
+import edu.sdstate.eastweb.prototype.Config;
+import edu.sdstate.eastweb.prototype.DataDate;
+
+public final class TrmmDownloader {
+    //private static final String FTP_HOSTNAME = "disc2.nascom.nasa.gov";
+    //private static final String ROOT_DIRECTORY = "/ftp/data/s4pa/TRMM_L3/TRMM_3B42_daily";
+    //private static final String HTTP_URL = "http://disc2.nascom.nasa.gov/daac-bin/OTF/HTTP_services.cgi";
+
+    private final DataDate mDate;
+    private final File mOutFile;
+
+    public TrmmDownloader(DataDate date, File outFile) {
+        mDate = date;
+        mOutFile = outFile;
+    }
+
+    /**
+     * Builds and returns a list containing all of the available data dates no earlier than the specified
+     * start date.
+     * @param startDate Specifies the inclusive lower bound for the returned data date list
+     * @throws IOException
+     */
+    public static final List<DataDate> listDates(DataDate startDate) throws IOException {
+        final Pattern yearDirPattern = Pattern.compile("\\d{4}");
+        final Pattern dayOfYearDirPattern = Pattern.compile("\\d{3}");
+
+        final FTPClient ftp = FtpClientPool.getFtpClient(Config.getInstance().getTrmmFtpHostName());
+        try {
+            ftp.changeWorkingDirectory(Config.getInstance().getTrmmRootDir());
+
+            // List years
+            final List<DataDate> list = new ArrayList<DataDate>();
+            for (FTPFile yearFile : ftp.listFiles()) {
+                // Skip non-directory, non-year entries
+                if (!yearFile.isDirectory() ||
+                        !yearDirPattern.matcher(yearFile.getName()).matches()) {
+                    continue;
+                }
+
+                final int year = Integer.parseInt(yearFile.getName());
+                if (year < startDate.getYear()) {
+                    continue;
+                }
+
+                // List days in this year
+                ftp.changeWorkingDirectory(String.format("%s/%s", Config.getInstance().getTrmmRootDir(), yearFile.getName()));
+                for (FTPFile dayOfYearFile : ftp.listFiles()) {
+                    if (yearFile.isDirectory() &&
+                            dayOfYearDirPattern.matcher(dayOfYearFile.getName()).matches()) {
+                        final int dayOfYear = Integer.parseInt(dayOfYearFile.getName());
+                        final DataDate dataDate = new DataDate(dayOfYear, year);
+                        if (dataDate.compareTo(startDate) >= 0) {
+                            list.add(dataDate);
+                        }
+                    }
+                }
+            }
+
+            return list;
+        } finally {
+            FtpClientPool.returnFtpClient(Config.getInstance().getTrmmFtpHostName(), ftp);
+        }
+    }
+
+    /**
+     * Downloads a TRMM data set to the specified file.
+     * @param date Data set date
+     * @param outFile Destination file
+     * @throws IOException
+     */
+    public final void download() throws IOException {
+        final Pattern pattern = Pattern.compile("3B42_daily\\.(\\d{4})\\.(\\d{2})\\.(\\d{2})\\.6\\.bin");
+
+        final FTPClient ftp = FtpClientPool.getFtpClient(Config.getInstance().getTrmmFtpHostName());
+        try {
+            ftp.changeWorkingDirectory(String.format(
+                    "%s/%04d/%03d",
+                    Config.getInstance().getTrmmRootDir(),
+                    mDate.getYear(),
+                    mDate.getDayOfYear()
+            ));
+
+            // Not 100% sure of the filename pattern, so list the directory
+            final List<String> filenames = new ArrayList<String>();
+            for (FTPFile file : ftp.listFiles()) {
+                final Matcher matcher = pattern.matcher(file.getName());
+                if (file.isFile() && matcher.matches()) {
+                    filenames.add(file.getName());
+                }
+            }
+
+            if (filenames.size() != 1) {
+                throw new IOException("TRMM archive contains multiple matching files, expected one; date = " + mDate);
+            }
+
+            final String baseFilename = filenames.get(0).substring(0, filenames.get(0).length() - ".bin".length());
+            final String binPath = String.format(
+                    "%s/%04d/%03d/%s.bin",
+                    Config.getInstance().getTrmmRootDir(),
+                    mDate.getYear(),
+                    mDate.getDayOfYear(),
+                    baseFilename
+            );
+            final URL url = new URL(String.format(
+                    "%s?FILENAME=%s&FORMAT=L2d6aXA&LABEL=&SHORTNAME=TRMM_3B42_daily&SERVICE=HDF_TO_NetCDF&VERSION=1.02",
+                    Config.getInstance().getTrmmHttpUrl(),
+                    URLEncoder.encode(binPath, "UTF-8"),
+                    URLEncoder.encode(baseFilename + ".nc.gz", "UTF-8")
+            ));
+
+            final File tempFile = File.createTempFile("trmm", null);
+            try {
+                DownloadUtils.downloadToFile(url, tempFile);
+                gunzip(tempFile, mOutFile);
+            } finally {
+                FileUtils.deleteQuietly(tempFile);
+            }
+        } finally {
+            FtpClientPool.returnFtpClient(Config.getInstance().getTrmmFtpHostName(), ftp);
+        }
+    }
+
+    /**
+     * Unzips a gzipped source file to a destination file.
+     * @param inFile Gzipped source file
+     * @param outFile Destination file
+     * @throws IOException thrown if anything goes wrong
+     */
+    private static void gunzip(File inFile, File outFile) throws IOException {
+        final FileInputStream fis = new FileInputStream(inFile);
+        Closeable closeable = fis;
+        try {
+            final GZIPInputStream gis = new GZIPInputStream(fis);
+            closeable = gis;
+
+            final FileOutputStream fos = new FileOutputStream(outFile);
+            try {
+                final byte[] buffer = new byte[1024];
+                int numBytesRead;
+                while ((numBytesRead = gis.read(buffer)) > 0) {
+                    fos.write(buffer, 0, numBytesRead);
+                }
+            } finally {
+                fos.close();
+            }
+        } finally {
+            closeable.close();
+        }
+    }
+}

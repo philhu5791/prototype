@@ -1,0 +1,162 @@
+package edu.sdstate.eastweb.prototype;
+
+import java.io.*;
+import java.util.*;
+import org.apache.commons.io.IOUtils;
+
+public final class Python {
+    public static final class PythonException extends Exception {
+        private static final long serialVersionUID = 1L;
+
+        public PythonException() {
+            super();
+        }
+
+        public PythonException(String message) {
+            super(message);
+        }
+
+        public PythonException(Throwable cause) {
+            super(cause);
+        }
+
+        public PythonException(String message, Throwable cause) {
+            super(message, cause);
+        }
+    }
+
+    private Python() {
+    }
+
+    private static void printStream(final InputStream stream, final boolean isError) throws IOException {
+        // This may be an overkill amount of threading, but it prevents deadlock when the script fails
+        final Thread thread = new Thread(new Runnable() {
+            @Override
+            public void run() {
+                final PrintStream ps = isError ? System.err : System.out;
+
+                final InputStreamReader isr = new InputStreamReader(stream);
+                java.io.Closeable closeable = isr;
+                try {
+                    final BufferedReader br = new BufferedReader(isr);
+                    closeable = br;
+
+                    String line;
+                    while ((line = br.readLine()) != null) {
+                        ps.println(String.format(
+                                "[%d] Python: %s",
+                                Thread.currentThread().getId(),
+                                line
+                        ));
+                    }
+                } catch (IOException e) {
+                    System.err.println("Python.printStream(): readLine() threw an exception:");
+                    e.printStackTrace();
+                } finally {
+                    IOUtils.closeQuietly(closeable);
+                }
+            }
+        });
+        thread.setDaemon(true);
+        thread.start();
+    }
+
+    public static void run(String scriptPath, String... args) throws PythonException {
+        run(scriptPath, -1, args);
+    }
+
+    public static void run(String scriptPath, int timeout, String... args) throws PythonException {
+        try {
+            final List<String> list = new ArrayList<String>();
+            list.add("python/python.exe");
+            list.add(scriptPath);
+            Collections.addAll(list, args);
+
+            Process process =
+                Runtime.getRuntime().exec(list.toArray(new String[0]));
+            //StringBuilder output = captureStreamOutput(process.getInputStream(), false);
+            //StringBuilder errors = captureStreamOutput(process.getErrorStream(), false);
+
+            printStream(process.getInputStream(), false);
+            printStream(process.getErrorStream(), true);
+
+            // If timeout specified then check if process exceeds timeout
+            if (timeout > 0) {
+                long finish = System.currentTimeMillis() + 1000L * timeout;
+                while (isAlive(process)) {
+                    Thread.sleep(10);
+                    if (System.currentTimeMillis() > finish) {
+                        process.destroy();
+
+                        throw new PythonException(
+                                scriptPath + " encountered a problem or took " +
+                                "too long to execute.\n"
+                        );
+                    }
+                }
+            } else {
+                process.waitFor();
+            }
+
+            final int ret = process.exitValue();
+            if (ret != 0) {
+                throw new PythonException(
+                        scriptPath + " return code was " + Integer.toString(ret) + ".\n"
+                );
+            }
+
+
+        } catch (IOException e) {
+            throw new PythonException(e);
+        } catch (InterruptedException e) {
+            throw new PythonException(e);
+        }
+    }
+
+    private static boolean isAlive(Process process) {
+        try {
+            process.exitValue();
+            return false;
+        } catch (Exception e) {
+            return true;
+        }
+    }
+
+    public static byte[] runForOutput(String scriptPath, String... args) throws PythonException {
+        try {
+            final List<String> list = new ArrayList<String>();
+            list.add("python/python.exe");
+            list.add(scriptPath);
+            Collections.addAll(list, args);
+
+            Process process =
+                Runtime.getRuntime().exec(list.toArray(new String[0]));
+            printStream(process.getErrorStream(), true);
+
+            // Capture process's output
+            final ByteArrayOutputStream baos = new ByteArrayOutputStream();
+            final InputStream is = process.getInputStream();
+            try {
+                final byte[] buffer = new byte[1024];
+                int numRead;
+                while ((numRead = is.read(buffer)) > 0) {
+                    baos.write(buffer, 0, numRead);
+                }
+            } finally {
+                is.close();
+            }
+
+            final int ret = process.waitFor(); // FIXME: could hang!
+            if (ret != 0) {
+                throw new PythonException(new StringBuilder().append(scriptPath)
+                        .append(" return code was ").append(ret).toString());
+            }
+
+            return baos.toByteArray();
+        } catch (IOException e) {
+            throw new PythonException(e);
+        } catch (InterruptedException e) {
+            throw new PythonException(e);
+        }
+    }
+}

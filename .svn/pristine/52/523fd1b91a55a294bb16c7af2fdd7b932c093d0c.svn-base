@@ -1,0 +1,30 @@
+import arcpy
+from arcpy.sa import *
+
+def prepare(rasters, watermask):
+    watermask = EqualTo(watermask, 1)
+    watermask = SetNull(watermask, watermask, """"Value" = 0""")
+    for x in range(0,len(rasters)):
+        rasters[x] = arcpy.CalculateStatistics_management(rasters[x])
+        rasters[x] = SetNull(rasters[x], rasters[x], """"Value" = 32767""")
+        rasters[x] = Times(rasters[x], watermask)
+    
+    return rasters
+
+def clip(raster, shapefiles):
+    print(shapefiles)
+    results = []
+    for shapefile in shapefiles:
+        print("Clipping shapefile: " + shapefile)
+        #raster = Times(raster, rescalingFactor)
+        results.append(ExtractByMask(raster, shapefile))
+        #raster = Divide(raster, rescalingFactor)
+        
+    return results
+
+def save(rasters, names):
+    if len(rasters) != len(names):
+        raise Exception("Unequal number of rasters and output names!")
+        
+    for x in range(0, len(rasters)):
+        rasters[x].save(names[x])

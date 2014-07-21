@@ -1,0 +1,81 @@
+package edu.sdstate.eastweb.prototype.scheduler.local;
+
+import edu.sdstate.eastweb.prototype.Config;
+import edu.sdstate.eastweb.prototype.scheduler.ErrorLog;
+import edu.sdstate.eastweb.prototype.scheduler.Queue;
+import edu.sdstate.eastweb.prototype.scheduler.QueueEntry;
+import edu.sdstate.eastweb.prototype.scheduler.SchedulerFeedback;
+import edu.sdstate.eastweb.prototype.scheduler.Worker;
+import edu.sdstate.eastweb.prototype.scheduler.framework.CallableTask;
+import edu.sdstate.eastweb.prototype.scheduler.framework.RunnableTask;
+import edu.sdstate.eastweb.prototype.scheduler.framework.Task;
+
+public class LocalWorker extends Worker {
+
+    public LocalWorker(Queue queue, SchedulerFeedback feedback) {
+        super(queue, feedback);
+    }
+
+    @Override
+    public void run() {
+        try {
+            while (true) {
+                QueueEntry entry = mQueue.dequeue();
+
+                if (entry.shouldTerminate()) {
+                    System.out.println("Worker " + Thread.currentThread().getId() + " quiting...");
+                    break;
+                }
+
+                if (entry.getType() == QueueEntry.Type.SKIP_CHECK) {
+                    if (entry.getCanSkip()) {
+                        try {
+                            entry.doContinuation();
+                        } catch (Exception e) {
+                            e.printStackTrace();
+                            ErrorLog.add(e.getMessage(), e);
+                        }
+                    } else {
+                        entry.setType(QueueEntry.Type.ACTUAL_TASK);
+                        mQueue.enqueue(entry);
+                    }
+                } else {
+                    Task task = entry.getTask();
+
+                    System.out.println("Worker " + Thread.currentThread().getId() + ": " + task.getName());
+                    mFeedback.newTask(task);
+
+                    Throwable throwable = null;
+                    try {
+                        if (task instanceof RunnableTask) {
+                            RunnableTask runnableTask = (RunnableTask)task;
+                            runnableTask.run();
+                        } else if (task instanceof CallableTask) {
+                            CallableTask<?> callableTask = (CallableTask<?>)task;
+                            callableTask.call();
+                        }
+                    } catch (Exception e) {
+                        throwable = e;
+                    }
+
+                    if (throwable == null) {
+                        mFeedback.taskCompleted(task);
+
+                        entry.doContinuation();
+                    } else {
+                        mFeedback.taskFailed(task, throwable);
+
+                        entry.incrementFailures();
+                        if (entry.getFailures() <= Config.getInstance().getTaskRetries()) {
+                            mQueue.enqueue(entry);
+                        }
+                    }
+                }
+            }
+        } catch (Exception e) {
+            e.printStackTrace();
+            System.out.println("Worker " + Thread.currentThread().getId() + " quiting due to errors...");
+        }
+    }
+
+}

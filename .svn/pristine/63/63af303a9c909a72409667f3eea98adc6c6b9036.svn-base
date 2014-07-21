@@ -1,0 +1,69 @@
+package edu.sdstate.eastweb.prototype.util;
+
+import java.io.FileNotFoundException;
+import java.io.IOException;
+
+import org.gdal.gdal.Dataset;
+import org.gdal.gdal.gdal;
+import org.gdal.gdalconst.gdalconst;
+import org.gdal.ogr.ogr;
+
+public class GdalUtils {
+    private GdalUtils() {
+    }
+
+    /**
+     * All GDAL operations should be done while holding a lock on this object.
+     * GDAL is "not competely thread-safe", so this may be critical.
+     */
+    public static final Object lockObject = new Object();
+
+    private static boolean sRegistered = false;
+
+    public static void register() {
+        synchronized (lockObject) {
+            if (!sRegistered) {
+                ogr.RegisterAll();
+                gdal.AllRegister();
+                ogr.UseExceptions();
+                sRegistered = true;
+            }
+        }
+    }
+
+    /**
+     * Checks for exceptions reported to the GDAL error reporting system and
+     * maps them to Java exceptions or errors.
+     * 
+     * @throws IOException CPLE_AppDefined, CPLE_FileIO, CPLE_OpenFailed, CPLE_NoWriteAccess, CPLE_UserInterrupt
+     * @throws IllegalArgumentException CPLE_IllegalArg
+     * @throws UnsupportedOperationException CPLE_NotSupported
+     */
+    public static void errorCheck() throws IOException, IllegalArgumentException, UnsupportedOperationException {
+        synchronized (lockObject) {
+            int type = gdal.GetLastErrorType();
+            if (type != gdalconst.CE_None) {
+                int number = gdal.GetLastErrorNo();
+                String message = gdal.GetLastErrorMsg();
+                gdal.ErrorReset();
+
+                if (number == gdalconst.CPLE_AppDefined ||
+                        number == gdalconst.CPLE_FileIO ||
+                        number == gdalconst.CPLE_OpenFailed ||
+                        number == gdalconst.CPLE_NoWriteAccess ||
+                        number == gdalconst.CPLE_UserInterrupt) {
+                    throw new IOException(message);
+                } else if (number == gdalconst.CPLE_OutOfMemory) {
+                    throw new OutOfMemoryError(message);
+                } else if (number == gdalconst.CPLE_IllegalArg) {
+                    throw new IllegalArgumentException(message);
+                } else if (number == gdalconst.CPLE_NotSupported) {
+                    throw new UnsupportedOperationException(message);
+                } else if (number == gdalconst.CPLE_AssertionFailed) {
+                    throw new AssertionError(message);
+                }
+            }
+        }
+    }
+
+}

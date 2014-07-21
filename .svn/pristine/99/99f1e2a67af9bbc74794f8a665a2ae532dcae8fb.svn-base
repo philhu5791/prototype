@@ -1,0 +1,10 @@
+package edu.sdstate.eastweb.prototype.scheduler.framework;
+
+import java.io.IOException;
+import java.io.Serializable;
+import java.util.List;
+
+public interface Task extends Serializable {
+    String getName();
+    List<String> getOutputs() throws IOException;
+}

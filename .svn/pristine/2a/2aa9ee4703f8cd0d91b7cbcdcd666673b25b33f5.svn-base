@@ -1,0 +1,296 @@
+package edu.sdstate.eastweb.prototype.reprojection;
+
+import java.io.File;
+import java.io.IOException;
+import java.util.ArrayList;
+import java.util.Arrays;
+import java.util.List;
+import org.gdal.gdal.Dataset;
+import org.gdal.gdal.gdal;
+import org.gdal.gdalconst.gdalconst;
+import org.gdal.ogr.DataSource;
+import org.gdal.ogr.ogr;
+import edu.sdstate.eastweb.prototype.ConfigReadException;
+import edu.sdstate.eastweb.prototype.DirectoryLayout;
+import edu.sdstate.eastweb.prototype.ProjectInfo;
+import edu.sdstate.eastweb.prototype.util.GdalUtils;
+
+public class ModisReprojection {
+    private int xSize;
+    private int ySize;
+    private int outputXSize;
+    private int outputYSize;
+    private int tileNumber;
+    private int[] band;
+    private ModisTileData[] tileList;
+    private ModisTileData[][] tileMetrix;
+    private ArrayList<File> mozaicOutput;
+    private ArrayList<File> reprojectOutput;
+    private int tileMetrixRow;
+    private int tileMetrixClo;
+
+    public ModisReprojection() {
+
+    }
+
+    public void project(File[] input, ProjectInfo project, File[] outputFiles,
+            int[] band) throws Exception {
+        GdalUtils.register();
+        synchronized (GdalUtils.lockObject) {
+            System.out.println("Start modisReprojectionNew");
+            initialize(input, band, outputFiles);
+            System.out.println("finish initialize");
+            sortTiles();
+            System.out.println("finish sort");
+            linkTiles();
+            System.out.println("finish link");
+            reproject(project);
+            System.out.println("finish project");
+            //free memory
+            tileList=null;
+            tileMetrix=null;
+
+        }
+
+    }
+
+    private void reproject(ProjectInfo project) throws ConfigReadException {
+        for(int index=0; index<band.length; index++){
+            File nonProjectFile=mozaicOutput.get(index);
+            Dataset inputDS=gdal.Open(nonProjectFile.getPath());
+            //Load feature data
+            List<DataSource> features = new ArrayList<DataSource>();
+            for (String filename : project.getShapeFiles()) {
+                features.add(ogr.Open(new File(DirectoryLayout.getSettingsDirectory(project), filename).getPath()));
+            }
+
+            // Find union of extents
+            double[] extent = features.get(0).GetLayer(0).GetExtent(); // Ordered: left, right, bottom, top
+
+            System.out.println(Arrays.toString(extent));
+
+            double left = extent[0];
+            double right = extent[1];
+            double bottom = extent[2];
+            double top = extent[3];
+            for (int i=1; i<features.size(); i++) {
+                extent = features.get(i).GetLayer(0).GetExtent();
+                if (extent[0] < left) {
+                    left = extent[0];
+                } else if (extent[1] > right) {
+                    right = extent[1];
+                } else if (extent[2] < bottom) {
+                    bottom = extent[2];
+                } else if (extent[3] > top) {
+                    top = extent[3];
+                }
+            }
+
+            // Project to union of extents
+            String outputName=reprojectOutput.get(index).getPath();
+            System.out.println(outputName);
+            Dataset outputDS = gdal.GetDriverByName("GTiff").Create(
+                    outputName,
+                    (int) Math.ceil((right-left)/project.getProjection().getPixelSize()),
+                    (int) Math.ceil((top-bottom)/project.getProjection().getPixelSize()),
+                    1,
+                    gdalconst.GDT_Float32
+            );
+            // FIXME: hack --should get projection from project info somehow
+            String outputProjection = features.get(0).GetLayer(0).GetSpatialRef().ExportToWkt();
+            outputDS.SetProjection(outputProjection);
+            outputDS.SetGeoTransform(new double[] {
+                    left, project.getProjection().getPixelSize(), 0,
+                    top, 0, -project.getProjection().getPixelSize()
+            });
+
+            gdal.ReprojectImage(inputDS, outputDS, null, null, gdalconst.GRA_Bilinear);
+
+            outputDS.GetRasterBand(1).ComputeStatistics(true);
+
+            outputDS.delete();
+            //change inputDS.delete() to inputDS=null by Jiameng Hu
+            inputDS.delete();
+
+            //save the reprojection product into reprojectOutput file arraylist
+            reprojectOutput.add(new File(outputName));
+        }
+
+    }
+
+    private void initialize(File[] input, int[] band, File[] outputFiles) throws Exception {
+        this.band = band.clone();
+        mozaicOutput= new ArrayList<File>();
+        reprojectOutput= new ArrayList<File>();
+        //save the given output file names
+        for(int i=0; i<outputFiles.length; i++){
+            reprojectOutput.add(outputFiles[i]);
+        }
+        tileNumber = input.length;
+        tileList = new ModisTileData[tileNumber];
+        for (int i = 0; i < tileNumber; i++) {
+            tileList[i] = new ModisTileData(input[i]);
+        }
+        xSize = tileList[0].xSize;
+        ySize = tileList[0].ySize;
+    }
+
+
+
+    private void linkTiles() throws IOException {
+
+        System.out.println("enter link");
+        // loop for each band needed be reprojected
+        for (int i = 0; i < band.length; i++) {
+            int currentBand = band[i];
+            File temp=File.createTempFile("band"+currentBand, ".tif");
+            System.out.println("create temp: "+temp.toString());
+            temp.deleteOnExit();
+
+            //System.out.println("before creat output");
+            // create output file and set the metadata
+            String[] option = { "INTERLEAVE=PIXEL" };
+            Dataset output =
+                gdal.GetDriverByName("GTiff").Create(
+                        temp.getAbsolutePath(),
+                        outputXSize,
+                        outputYSize,
+                        1,          // band number
+                        gdalconst.GDT_Float32, option);
+
+            Dataset input=gdal.Open(tileList[0].sdsName[0]);
+            output.SetGeoTransform(input.GetGeoTransform());
+            output.SetProjection(input.GetProjection());
+            output.SetMetadata(input.GetMetadata_Dict());
+            //if error happens, change to input=null
+            input.delete();
+
+            // outputTemp is used to store double array data of output file
+            ImageArray outputTemp =
+                new ImageArray(output.getRasterXSize(),
+                        output.getRasterYSize());
+
+            // loop for each tile
+            for (int col = 0; col < tileMetrixClo; col++) {
+                for (int row = 0; row < tileMetrixRow; row++) {
+                    ImageArray tempArray;
+                    if (tileMetrix[row][col] != null) {
+                        System.out.println("current= "+currentBand+" "+tileMetrix[row][col].sdsName[currentBand - 1]);
+                        // currentTile=null;
+                        Dataset tempTile=gdal.Open(tileMetrix[row][col].sdsName[currentBand-1]);
+                        tempArray =new ImageArray(tempTile.GetRasterBand(1));
+                        tempTile.delete();
+
+                    } else {
+                        tempArray = null;
+                    }
+
+                    // loop for each row of temp array image
+                    for (int j = ySize * row; j < ySize * (row + 1); j++) {
+                        double[] rowTemp = outputTemp.getRow(j);
+                        if (tempArray != null) {
+                            double[] tileRow =
+                                tempArray.getRow(j - row * ySize);
+                            System.arraycopy(tileRow, 0, rowTemp, col * xSize,
+                                    xSize);
+                        } else {
+                            // set value for the no tile data area
+                            double[] tileRow = new double[xSize];
+                            for (int k = 0; k < xSize; k++) {
+                                tileRow[k] =  -3.40282346639e+038;
+                            }
+                            System.arraycopy(tileRow, 0, rowTemp, col * xSize,
+                                    xSize);
+                        }
+
+                        outputTemp.setRow(j, rowTemp);
+                        rowTemp = null;
+
+                    }
+
+                    // destroy tempArray
+                    tempArray = null;
+                    //tileMetrix[row][col]=null;
+
+                }
+            }
+
+
+
+            output.GetRasterBand(1).WriteRaster(0, 0, output.getRasterXSize(),
+                    output.getRasterYSize(), outputTemp.getArray());
+
+            output.GetRasterBand(1).ComputeStatistics(true);
+            output.delete();
+            outputTemp=null;
+
+            // add this band mozaic product into outputFile arraylist
+            mozaicOutput.add(temp);
+
+        }
+
+    }
+
+    // calculate the row number of tilemetrix[][], for the giving line number(row) of output
+    // Assuming tile=1200*1200:  return 0 if  0<=line<1200;
+    //                           return 1 if  1200<=line<2400;
+    private int getRow(int line) {
+        int row = 0;
+        for (int i = 0; i < tileMetrixRow; i++) {
+
+            if (line / ((i + 1) * xSize) == 0) {
+                row = i;
+                return row;
+            }
+        }
+        return row;
+    }
+
+    private void sortTiles() {
+        int minH = tileList[0].horizon;
+        int maxH = tileList[0].horizon;
+        int minV = tileList[0].vertical;
+        int maxV = tileList[0].vertical;
+        for (int i = 0; i < tileNumber; i++) {
+            if (minH > tileList[i].horizon) {
+                minH = tileList[i].horizon;
+            }
+
+            if (maxH < tileList[i].horizon) {
+                maxH = tileList[i].horizon;
+            }
+            if (minV > tileList[i].vertical) {
+                minV = tileList[i].vertical;
+            }
+
+            if (maxV < tileList[i].vertical) {
+                maxV = tileList[i].vertical;
+            }
+        }
+        tileMetrixRow = maxV - minV + 1;
+        tileMetrixClo = maxH - minH + 1;
+        // System.out.println(tileMetrixRow);
+        // System.out.println(tileMetrixClo);
+        tileMetrix = new ModisTileData[tileMetrixRow][tileMetrixClo];
+
+        for (int i = 0; i < tileNumber; i++) {
+            // System.out.println(tileList[i].vertical);
+            // System.out.println(tileList[i].horizon);
+            tileMetrix[tileList[i].vertical - minV][tileList[i].horizon - minH] =
+                tileList[i];
+        }
+
+        for (int i = 0; i < tileMetrixRow; i++) {
+            for (int j = 0; j < tileMetrixClo; j++) {
+                if (tileMetrix[i][j] != null) {
+                    System.out.println("true" + i + " " + j);
+                } else {
+                    System.out.println("false" + i + " " + j);
+                }
+
+            }
+        }
+        outputXSize = xSize * tileMetrixClo;
+        outputYSize = ySize * tileMetrixRow;
+    }
+}

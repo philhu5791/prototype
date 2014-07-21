@@ -1,0 +1,45 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<project>
+    <active>false</active>
+    <name>test</name>
+    <start.date>
+        <month>9</month>
+        <day>17</day>
+        <year>2013</year>
+    </start.date>
+    <watermask>watermask\Water_M.tif</watermask>
+    <elevation>elevation\Water_M.tif</elevation>
+    <min.lst>-123.15</min.lst>
+    <max.lst>1037.55</max.lst>
+    <calculate.eta>true</calculate.eta>
+    <projection>
+        <projection.type>LAMBERT_CONFORMAL_CONIC</projection.type>
+        <resampling.type>NEAREST_NEIGHBOR</resampling.type>
+        <datum>WGS84</datum>
+        <pixel.size>1000</pixel.size>
+        <standard.parallel1>0.0</standard.parallel1>
+        <standard.parallel2>0.0</standard.parallel2>
+        <scaling.factor>0.0</scaling.factor>
+        <central.meridian>123.0</central.meridian>
+        <false.easting>5000.0</false.easting>
+        <false.northing>0.0</false.northing>
+        <latitude.of.origin>0.0</latitude.of.origin>
+    </projection>
+    <modis.tiles>
+        <tile>
+            <horz>20</horz>
+            <vert>8</vert>
+        </tile>
+        <tile>
+            <horz>21</horz>
+            <vert>9</vert>
+        </tile>
+    </modis.tiles>
+    <zonal.summaries>
+        <summary>
+            <name>tt</name>
+            <shapefile>shapefiles\TW_DIS_F_P_Dis_REGION\TW_DIS_F_P_Dis_REGION.shp</shapefile>
+            <field>N_ID2</field>
+        </summary>
+    </zonal.summaries>
+</project>

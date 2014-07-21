@@ -1,0 +1,17 @@
+package edu.sdstate.eastweb.prototype.filetransfer;
+
+import java.io.Serializable;
+
+public class FileError implements Serializable {
+    private static final long serialVersionUID = 1L;
+    private final Throwable cause;
+
+    public FileError(Throwable cause) {
+        this.cause = cause;
+    }
+
+    public Throwable getCause() {
+        return cause;
+    }
+
+}

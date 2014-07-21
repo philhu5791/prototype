@@ -1,0 +1,39 @@
+package edu.sdstate.eastweb.prototype.scheduler;
+
+import edu.sdstate.eastweb.prototype.scheduler.framework.Action;
+import edu.sdstate.eastweb.prototype.scheduler.framework.CallableTask;
+
+public class CallableQueueEntry<T> extends QueueEntry {
+
+    public CallableQueueEntry(Type type, int priority, CallableTask<T> task,
+            Action<T> continuation) {
+        super(type, priority, task, continuation);
+    }
+
+    public CallableQueueEntry(int priority, CallableTask<T> task,
+            Action<T> continuation) {
+        super(Type.SKIP_CHECK, priority, task, continuation);
+    }
+
+    @Override
+    public boolean shouldTerminate() {
+        return false;
+    }
+
+    @Override
+    public boolean getCanSkip() {
+        return ((CallableTask<?>)mTask).getCanSkip() != null;
+    }
+
+    @SuppressWarnings("unchecked")
+    @Override
+    public void doContinuation() throws Exception {
+        T skip = ((CallableTask<T>)mTask).getCanSkip();
+        if (skip != null) {
+            ((Action<T>)mContinuation).act(
+                    skip
+            );
+        }
+    }
+
+}

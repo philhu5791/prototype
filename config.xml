@@ -1,0 +1,73 @@
+<?xml version="1.0"?>
+<config>
+<ROOT_DIRECTORY>E:\eastweb-data</ROOT_DIRECTORY>
+<TEMP_DIRECTORY>E:\eastweb-data\temp</TEMP_DIRECTORY>
+<productList>MODIS;Eto;Trmm;TRMM_3B42</productList>
+  <MODIS>
+	<type>http</type>
+	<lstUrl>http://e4ftl01.cr.usgs.gov/MOLT/MOD11A2.005</lstUrl>
+	<nbarUrl>http://e4ftl01.cr.usgs.gov/MOTA/MCD43B4.005</nbarUrl>
+  <!--  <hostName>e4ftl01.cr.usgs.gov</hostName>
+    <nbarRootDir>/MOTA/MCD43B4.005</nbarRootDir>
+    <lstRootDir>/MOLT/MOD11A2.005</lstRootDir>
+	<userName>anonymous</userName>
+	<passWord>anonymous</passWord> -->
+  </MODIS>
+  <Eto>
+    <type>http</type>
+    <url>http://earlywarning.usgs.gov/fews/global/web/dwnglobalpet.php</url>
+  </Eto>
+  <!---
+  <Eto id="Eto" type="ftp">
+    <hostName></hostName>
+    <RootDir></RootDir>
+	<userName>anonymous</userName>
+	<passWord>anonymous</passWord>
+  </Eto>
+  -->
+  <Trmm>
+    <type>ftp</type>
+    <hostName>disc2.nascom.nasa.gov</hostName>
+	<userName>anonymous</userName>
+	<passWord>anonymous</passWord>
+	<Trmm3B42RootDir>/ftp/data/TRMM/Gridded/Derived_Products/3B42_V7/Daily</Trmm3B42RootDir>
+	<Trmm3B42RTRootDir>/ftp/data/TRMM/Gridded/Derived_Products/3B42RT/Daily</Trmm3B42RTRootDir>
+  </Trmm>
+
+  <TRMM_3B42>
+   <type>ftp</type>
+   <hostName>disc2.nascom.nasa.gov</hostName>
+   <userName>anonymous</userName>
+	<passWord>anonymous</passWord>
+	<rootDir>/ftp/data/TRMM/Gridded/Derived_Products/3B42_V7/Daily</rootDir>
+  </TRMM_3B42>
+
+  <NLDAS>
+   <type>ftp</type>
+   <hostName>hydro1.sci.gsfc.nasa.gov</hostName>
+   <userName>anonymous</userName>
+     <passWord>anonymous</passWord>
+     <rootDir>/data/s4pa/NLDAS/NLDAS_FORA0125_H.002</rootDir>
+  </NLDAS>
+
+  
+
+  <DataBase>
+    <hostName>localhost:5432</hostName>
+    <userName>postgres</userName>
+    <passWord>eastweb</passWord>
+  </DataBase>
+  <DOWNLOAD_REFRESH_DAYS>8</DOWNLOAD_REFRESH_DAYS>
+  <Tansform>
+  <NAD83_NAD27_TRANSFORM>
+  NAD_1927_To_NAD_1983_NADCON</NAD83_NAD27_TRANSFORM>
+  <NAD83_WGS72_TRANSFORM>
+  NAD_1983_To_WGS_1984_5;WGS_1972_To_WGS_1984_2</NAD83_WGS72_TRANSFORM>
+  <NAD83_WGS84_TRANSFORM>
+  NAD_1983_To_WGS_1984_5</NAD83_WGS84_TRANSFORM>
+  <WGS84_NAD27_TRANSFORM>
+  NAD_1927_To_WGS_1984_4</WGS84_NAD27_TRANSFORM>
+  <WGS84_WGS72_TRANSFORM>
+  WGS_1972_To_WGS_1984_2</WGS84_WGS72_TRANSFORM>
+  </Tansform>
+</config>

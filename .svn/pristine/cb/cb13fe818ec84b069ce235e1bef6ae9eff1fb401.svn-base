@@ -1,0 +1,94 @@
+package edu.sdstate.eastweb.prototype.zonalstatistics;
+
+import java.io.File;
+import java.util.Vector;
+
+import org.gdal.gdal.Band;
+import org.gdal.gdal.Dataset;
+import org.gdal.gdal.gdal;
+import org.gdal.gdalconst.gdalconst;
+import org.gdal.ogr.DataSource;
+import org.gdal.ogr.Layer;
+import org.gdal.ogr.ogr;
+
+import edu.sdstate.eastweb.prototype.util.GdalUtils;
+
+public class GdalRasterize {
+
+    final File mFeature;
+    final String mAttribute;
+    final File mOutput;
+    final double mPixelHeight;
+    final double mPixelWidth;
+
+    public GdalRasterize(File feature, String attribute, File output, double pixelWidth, double pixelHeight) {
+        mFeature = feature;
+        mAttribute = attribute;
+        mOutput = output;
+        mPixelWidth = pixelWidth;
+        mPixelHeight = pixelHeight;
+    }
+
+    public void rasterize() throws Exception {
+        // FIXME: has only be tested for this case:
+        assert(mPixelWidth > 0);
+        assert(mPixelHeight < 0);
+
+        GdalUtils.register();
+
+        synchronized (GdalUtils.lockObject) {
+            DataSource featureDS = ogr.Open(mFeature.getPath());
+            Layer featureLyr = featureDS.GetLayer(0);
+
+            double[] featureExtent = featureLyr.GetExtent();
+
+            Dataset outputDS = gdal.GetDriverByName("GTiff").Create(
+                    mOutput.getPath(),
+                    (int) Math.ceil((featureExtent[1]-featureExtent[0]) / Math.abs(mPixelWidth)),
+                    (int) Math.ceil((featureExtent[3]-featureExtent[2]) / Math.abs(mPixelHeight)),
+                    1,
+                    gdalconst.GDT_Int16
+                    );
+
+            outputDS.SetProjection(featureLyr.GetSpatialRef().ExportToWkt());
+            outputDS.SetGeoTransform(new double[] {
+                    featureExtent[0], mPixelWidth, 0,
+                    featureExtent[2] + outputDS.GetRasterYSize()*Math.abs(mPixelHeight), 0, mPixelHeight
+            });
+
+            // Burn the values
+            Vector<String> options = new Vector<String>();
+            options.add("ATTRIBUTE=" + mAttribute);
+
+            gdal.RasterizeLayer(outputDS, new int[] {1}, featureLyr, null, options);
+
+            System.out.println("1");
+            // Calculate statistics
+            for (int i=1; i<=outputDS.GetRasterCount(); i++) {
+                Band band = outputDS.GetRasterBand(i);
+
+                band.SetNoDataValue(0); // FIXME
+                band.ComputeStatistics(false);
+            }
+
+            outputDS.delete();
+            System.out.println("2");
+        }
+    }
+
+    /**
+     * @param args
+     * @throws Exception
+     */
+    public static void main(String[] args) throws Exception {
+        GdalRasterize rasterizer = new GdalRasterize(
+                new File(args[0]),
+                args[1],
+                new File(args[2]),
+                1000,
+                -1000
+                );
+        rasterizer.rasterize();
+    }
+
+}

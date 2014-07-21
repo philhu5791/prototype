@@ -1,0 +1,53 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<project>
+    <active>false</active>
+    <name>Test Project 2</name>
+    <start.date>
+        <month>6</month>
+        <day>1</day>
+        <year>2011</year>
+    </start.date>
+    <watermask>watermask\rec_watermask</watermask>
+    <elevation>elevation\dem_ngp</elevation>
+    <calculate.eta>true</calculate.eta>
+    <projection>
+        <projection.type>ALBERS_EQUAL_AREA</projection.type>
+        <resampling.type>NEAREST_NEIGHBOR</resampling.type>
+        <datum>NAD83</datum>
+        <pixel.size>1000</pixel.size>
+        <standard.parallel1>43.0</standard.parallel1>
+        <standard.parallel2>47.0</standard.parallel2>
+        <scaling.factor>0.0</scaling.factor>
+        <central.meridian>-102.0</central.meridian>
+        <false.easting>0.0</false.easting>
+        <false.northing>0.0</false.northing>
+        <latitude.of.origin>45.0</latitude.of.origin>
+    </projection>
+    <modis.tiles>
+        <tile>
+            <horz>10</horz>
+            <vert>4</vert>
+        </tile>
+        <tile>
+            <horz>9</horz>
+            <vert>4</vert>
+        </tile>
+    </modis.tiles>
+    <zonal.summaries>
+        <summary>
+            <name>NGP states</name>
+            <shapefile>shapefiles\zone0\west.shp</shapefile>
+            <field>STATE</field>
+        </summary>
+        <summary>
+            <name>NGP counties</name>
+            <shapefile>shapefiles\zone1\west.shp</shapefile>
+            <field>COUNTY</field>
+        </summary>
+        <summary>
+            <name>new</name>
+            <shapefile>C:\Users\isaiah\Desktop\shared\CS\NGP_shpfile\NGP_AEA.shp</shapefile>
+            <field>AREA</field>
+        </summary>
+    </zonal.summaries>
+</project>

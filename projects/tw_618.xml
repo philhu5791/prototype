@@ -1,0 +1,45 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<project>
+    <active>true</active>
+    <name>tw_618</name>
+    <start.date>
+        <month>3</month>
+        <day>18</day>
+        <year>2014</year>
+    </start.date>
+    <watermask>watermask\trmmrt.tif</watermask>
+    <elevation>elevation</elevation>
+    <min.lst>-123.15</min.lst>
+    <max.lst>1037.55</max.lst>
+    <calculate.eta>false</calculate.eta>
+    <projection>
+        <projection.type>TRANSVERSE_MERCATOR</projection.type>
+        <resampling.type>BILINEAR</resampling.type>
+        <datum>WGS84</datum>
+        <pixel.size>1000</pixel.size>
+        <standard.parallel1>0.0</standard.parallel1>
+        <standard.parallel2>0.0</standard.parallel2>
+        <scaling.factor>0.9996</scaling.factor>
+        <central.meridian>123.0</central.meridian>
+        <false.easting>500000.0</false.easting>
+        <false.northing>0.0</false.northing>
+        <latitude.of.origin>0.0</latitude.of.origin>
+    </projection>
+    <modis.tiles>
+        <tile>
+            <horz>29</horz>
+            <vert>6</vert>
+        </tile>
+        <tile>
+            <horz>28</horz>
+            <vert>6</vert>
+        </tile>
+    </modis.tiles>
+    <zonal.summaries>
+        <summary>
+            <name>rr</name>
+            <shapefile>shapefiles\TW_DIS_F_P_Dis_REGION\TW_DIS_F_P_Dis_REGION.shp</shapefile>
+            <field>N_ID2</field>
+        </summary>
+    </zonal.summaries>
+</project>

@@ -1,0 +1,49 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<project>
+    <active>false</active>
+    <name>Test Project 4</name>
+    <start.date>
+        <month>8</month>
+        <day>3</day>
+        <year>2011</year>
+    </start.date>
+    <watermask>watermask\WaterMask</watermask>
+    <elevation>elevation</elevation>
+    <calculate.eta>false</calculate.eta>
+    <projection>
+        <projection.type>TRANSVERSE_MERCATOR</projection.type>
+        <resampling.type>NEAREST_NEIGHBOR</resampling.type>
+        <datum>NAD83</datum>
+        <pixel.size>1000</pixel.size>
+        <standard.parallel1>0.0</standard.parallel1>
+        <standard.parallel2>0.0</standard.parallel2>
+        <scaling.factor>0.9996</scaling.factor>
+        <central.meridian>-123.0</central.meridian>
+        <false.easting>500000.0</false.easting>
+        <false.northing>1.0E7</false.northing>
+        <latitude.of.origin>0.0</latitude.of.origin>
+    </projection>
+    <modis.tiles>
+        <tile>
+            <horz>1</horz>
+            <vert>1</vert>
+        </tile>
+    </modis.tiles>
+    <zonal.summaries>
+        <summary>
+            <name>sum1</name>
+            <shapefile>shapefiles\shapefile0\NGP_AEA.shp</shapefile>
+            <field>AREA</field>
+        </summary>
+        <summary>
+            <name>sum2</name>
+            <shapefile>C:\Users\isaiah\Desktop\shared\CS\NGP_shpfile\NGP_AEA.shp</shapefile>
+            <field>PERIMETER</field>
+        </summary>
+        <summary>
+            <name>sum3</name>
+            <shapefile>C:\Users\isaiah\Desktop\shared\CS\NGP_shpfile\NGP_AEA.shp</shapefile>
+            <field>STATE_FIPS</field>
+        </summary>
+    </zonal.summaries>
+</project>

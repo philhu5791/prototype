@@ -1,0 +1,33 @@
+package edu.sdstate.eastweb.prototype.scheduler;
+
+import edu.sdstate.eastweb.prototype.scheduler.framework.Task;
+
+public class TerminateQueueEntry extends QueueEntry {
+
+    private static final int TERMINATE_PRIORITY = -1;
+
+    public TerminateQueueEntry() {
+        super(Type.SKIP_CHECK, TERMINATE_PRIORITY, null, null);
+    }
+
+    @Override
+    public boolean shouldTerminate() {
+        return true;
+    }
+
+    @Override
+    public boolean getCanSkip() {
+        return false;
+    }
+
+    @Override
+    public Task getTask() {
+        throw new IllegalStateException("This method cannot be called on a TerminateQueueEntry.");
+    }
+
+    @Override
+    public void doContinuation() throws Exception {
+        throw new IllegalStateException("This method cannot be called on a TerminateQueueEntry.");
+    }
+
+}

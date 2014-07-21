@@ -1,0 +1,18 @@
+package edu.sdstate.eastweb.prototype.filetransfer;
+
+import java.io.Serializable;
+
+public class FileData implements Serializable {
+
+    private static final long serialVersionUID = 1L;
+    private final byte[] data;
+
+    public FileData(byte[] bytes) {
+        data = bytes;
+    }
+
+    public byte[] getData() {
+        return data;
+    }
+
+}

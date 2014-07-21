@@ -1,0 +1,150 @@
+package edu.sdstate.eastweb.prototype.indices;
+
+import java.io.File;
+import java.util.ArrayList;
+import java.util.List;
+
+//import com.esri.arcgis.geoprocessing.GeoProcessor;
+//import com.esri.arcgis.geoprocessing.tools.datamanagementtools.CalculateStatistics;
+//import com.esri.arcgis.geoprocessing.tools.spatialanalysttools.Divide;
+//import com.esri.arcgis.geoprocessing.tools.spatialanalysttools.EqualTo;
+//import com.esri.arcgis.geoprocessing.tools.spatialanalysttools.ExtractByMask;
+//import com.esri.arcgis.geoprocessing.tools.spatialanalysttools.Minus;
+//import com.esri.arcgis.geoprocessing.tools.spatialanalysttools.Plus;
+//import com.esri.arcgis.geoprocessing.tools.spatialanalysttools.SetNull;
+//import com.esri.arcgis.geoprocessing.tools.spatialanalysttools.Times;
+
+import edu.sdstate.eastweb.prototype.Config;
+import edu.sdstate.eastweb.prototype.Python;
+//import edu.sdstate.eastweb.prototype.util.ArcGisUtil;
+import edu.sdstate.eastweb.prototype.util.PythonHelper;
+
+/**
+ * NDVI calculator.
+ * 
+ * @author Isaiah Snell-Feikema
+ */
+public class NdviCalculator implements IndexCalculator {
+    private File workspace;
+    private File red;
+    private File nir;
+    private File watermask;
+    private File[] shapefiles;
+    private File[] outputs;
+
+    public NdviCalculator(File workspace, File red, File nir, File watermask, File[] shapefiles,
+            File[] outputs) {
+        this.workspace = workspace;
+        this.red = red;
+        this.nir = nir;
+        this.watermask = watermask;
+        this.shapefiles = shapefiles;
+        this.outputs = outputs;
+    }
+
+    @Override
+    public void compute() throws Exception {
+        Python.run(
+                "python/ndvi.py",
+                Config.getInstance().getIndexPythonTimeout(),
+                workspace.toString(),
+                red.toString(),
+                nir.toString(),
+                watermask.toString(),
+                PythonHelper.packParameters(shapefiles, ';'),
+                PythonHelper.packParameters(outputs, ';')
+        );
+
+        /*
+        ArcGisUtil.initialize();
+
+        GeoProcessor gp = new GeoProcessor();
+        gp.setOverwriteOutput(true);
+
+        // Temp outputs
+        String equalToWatermask = "./" + ArcGisUtil.getTempFilename();
+        String preparedWatermask = "./" + ArcGisUtil.getTempFilename();
+        String preparedRed = "./" + ArcGisUtil.getTempFilename();
+        String preparedNir = "./" + ArcGisUtil.getTempFilename();
+        String filteredRed = "./" + ArcGisUtil.getTempFilename();
+        String filteredNir = "./" + ArcGisUtil.getTempFilename();
+        String minus = "./" + ArcGisUtil.getTempFilename();
+        String plus = "./" + ArcGisUtil.getTempFilename();
+        String divide = "./" + ArcGisUtil.getTempFilename();
+
+        // Prepare watermask
+        gp.execute(new CalculateStatistics(watermask.getAbsolutePath()), null);
+        gp.execute(new EqualTo(watermask.getAbsolutePath(), 1, equalToWatermask), null);
+        {
+            SetNull setNull = new SetNull(equalToWatermask, equalToWatermask, preparedWatermask);
+            setNull.setWhereClause("\"Value\" = 0");
+            gp.execute(setNull, null);
+        }
+
+
+        // Prepare rasters
+        gp.execute(new CalculateStatistics(red.getAbsolutePath()), null);
+        gp.execute(new CalculateStatistics(nir.getAbsolutePath()), null);
+
+        {
+            SetNull setNull = new SetNull(red.getAbsolutePath(), red.getAbsolutePath(), preparedRed);
+            setNull.setWhereClause("\"Value\" = 32767");
+            gp.execute(setNull, null);
+        }
+
+        {
+            SetNull setNull = new SetNull(nir.getAbsolutePath(), nir.getAbsolutePath(), preparedNir);
+            setNull.setWhereClause("\"Value\" = 32767");
+            gp.execute(setNull, null);
+        }
+
+        gp.execute(new Times(preparedRed, preparedWatermask, filteredRed), null);
+        gp.execute(new Times(preparedNir, preparedWatermask, filteredNir), null);
+
+        //
+        //        for x in range(0,len(rasters)):
+        //            rasters[x] = arcpy.CalculateStatistics_management(rasters[x])
+        //            rasters[x] = SetNull(rasters[x], rasters[x], """"Value" = 32767""")
+        //            rasters[x] = Times(rasters[x], watermask)
+
+
+
+        // Do calculations
+        gp.execute(new Minus(filteredNir, filteredRed, minus), null);
+        gp.execute(new Plus(filteredRed, filteredNir, plus), null);
+        gp.execute(new Divide(minus, plus, divide), null);
+
+        // Clip using shapefile and save
+        for (int i=0; i<shapefiles.length; i++) {
+            new ExtractByMask(
+                    divide,
+                    shapefiles[i].getAbsolutePath(),
+                    outputs[i].getAbsolutePath()
+            );
+        }
+         */
+
+        /*
+        arcpy.CheckOutExtension("Spatial")
+
+        print("Preparing...")
+        red, nir = indicator_util.prepare([red,nir], watermask)
+
+        print("Computing...")
+        sub = Minus(nir, red)
+        add = Plus(red, nir)
+        ndvi = Divide(Float(sub), Float(add))
+
+        print("Clipping...")
+        results = indicator_util.clip(ndvi, shapefiles)
+
+        print("Saving...")
+        indicator_util.save(results, outputs)
+         */
+
+    }
+
+}
+
+
+

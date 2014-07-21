@@ -1,0 +1,43 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<project>
+    <active>false</active>
+    <name>ga_aea</name>
+    <start.date>
+        <month>1</month>
+        <day>1</day>
+        <year>2012</year>
+    </start.date>
+    <watermask>watermask\watermask</watermask>
+    <elevation>elevation\dem</elevation>
+    <calculate.eta>true</calculate.eta>
+    <projection>
+        <projection.type>ALBERS_EQUAL_AREA</projection.type>
+        <resampling.type>NEAREST_NEIGHBOR</resampling.type>
+        <datum>NAD83</datum>
+        <pixel.size>1000</pixel.size>
+        <standard.parallel1>43.0</standard.parallel1>
+        <standard.parallel2>47.0</standard.parallel2>
+        <scaling.factor>0.0</scaling.factor>
+        <central.meridian>-102.0</central.meridian>
+        <false.easting>0.0</false.easting>
+        <false.northing>0.0</false.northing>
+        <latitude.of.origin>45.0</latitude.of.origin>
+    </projection>
+    <modis.tiles>
+        <tile>
+            <horz>10</horz>
+            <vert>5</vert>
+        </tile>
+        <tile>
+            <horz>11</horz>
+            <vert>5</vert>
+        </tile>
+    </modis.tiles>
+    <zonal.summaries>
+        <summary>
+            <name>county</name>
+            <shapefile>shapefiles\shapefile\shapefile.shp</shapefile>
+            <field>COUNTYFP10</field>
+        </summary>
+    </zonal.summaries>
+</project>

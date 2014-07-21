@@ -1,0 +1,45 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<project>
+    <active>false</active>
+    <name>ami</name>
+    <start.date>
+        <month>2</month>
+        <day>4</day>
+        <year>2014</year>
+    </start.date>
+    <watermask>watermask\Ethiopia_watermask.tif</watermask>
+    <elevation>elevation</elevation>
+    <min.lst>-123.15</min.lst>
+    <max.lst>1037.55</max.lst>
+    <calculate.eta>false</calculate.eta>
+    <projection>
+        <projection.type>ALBERS_EQUAL_AREA</projection.type>
+        <resampling.type>NEAREST_NEIGHBOR</resampling.type>
+        <datum>WGS84</datum>
+        <pixel.size>1000</pixel.size>
+        <standard.parallel1>0.0</standard.parallel1>
+        <standard.parallel2>0.0</standard.parallel2>
+        <scaling.factor>0.0</scaling.factor>
+        <central.meridian>0.0</central.meridian>
+        <false.easting>0.9996</false.easting>
+        <false.northing>500000.0</false.northing>
+        <latitude.of.origin>0.0</latitude.of.origin>
+    </projection>
+    <modis.tiles>
+        <tile>
+            <horz>21</horz>
+            <vert>7</vert>
+        </tile>
+        <tile>
+            <horz>21</horz>
+            <vert>8</vert>
+        </tile>
+    </modis.tiles>
+    <zonal.summaries>
+        <summary>
+            <name>wid</name>
+            <shapefile>shapefiles\Woreda_new\Woreda_new.shp</shapefile>
+            <field>WID</field>
+        </summary>
+    </zonal.summaries>
+</project>

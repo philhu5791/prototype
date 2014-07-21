@@ -1,0 +1,29 @@
+package edu.sdstate.eastweb.prototype.util;
+
+/**
+ * Simple utility class for common Python related functions.
+ * 
+ * @author Isaiah Snell-Feikema
+ */
+public class PythonHelper {
+
+    /**
+     * Packs a list of objects into a string separated by a character.
+     * 
+     * @param objs
+     * @return
+     */
+    public static String packParameters(Object objs[], char ch) {
+        StringBuilder string = new StringBuilder();
+
+        int i;
+        for (i=0; i<objs.length-1; i++) {
+            string.append(objs[i].toString());
+            string.append(ch);
+        }
+        string.append(objs[i++].toString());
+
+        return string.toString();
+    }
+
+}

@@ -1,0 +1,40 @@
+# Args: [RED] [NIR] [watermask] [shapefile] [output]
+# Equation: SAVI = (NIR - RED*(1+L))/(NIR + RED + L), where L=0.5
+
+import sys
+import os.path
+
+import arcpy
+from arcpy.sa import *
+
+import indicator_util
+
+arcpy.env.overwriteOutput = True
+
+_, arcpy.env.workspace, red, nir, watermask, shapefiles, outputs = sys.argv
+L = 0.5
+
+shapefiles = shapefiles.split(';')
+outputs = outputs.split(';')
+
+arcpy.CheckOutExtension("Spatial")
+
+print("Preparing...")
+red, nir = indicator_util.prepare([red, nir], watermask)
+
+print("Computing...")
+bottom = Plus(nir, red) # NIR + RED
+bottom = Plus(bottom, L) # NIR + RED + L
+
+top = Times(red, 1+L) # RED*(1+L)
+top = Minus(nir, top) # NIR - RED*(1+L)
+
+savi = Divide(top, bottom) # (NIR - RED*(1+L))/(NIR + RED + L)
+
+print("Clipping...")
+results = indicator_util.clip(savi, shapefiles)
+
+print("Saving...")
+indicator_util.save(results, outputs)
+
+print("Finished.")

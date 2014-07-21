@@ -1,0 +1,386 @@
+package edu.sdstate.eastweb.prototype.scheduler;
+
+import java.util.Hashtable;
+import java.util.Map;
+
+import org.eclipse.swt.SWT;
+import org.eclipse.swt.custom.TableEditor;
+import org.eclipse.swt.layout.FormAttachment;
+import org.eclipse.swt.layout.FormData;
+import org.eclipse.swt.layout.FormLayout;
+import org.eclipse.swt.layout.GridData;
+import org.eclipse.swt.layout.GridLayout;
+import org.eclipse.swt.widgets.*;
+
+import edu.sdstate.eastweb.prototype.scheduler.SchedulerEvents.SchedulerEventListener;
+
+public class SchedulerFormMockup {
+    private Shell shell;
+    private SchedulerEvents schedulerEvents;
+    private Map<String, TableItem> taskGroups;
+    private Map<String, TableItem> tasks;
+
+    private Menu menuBar;
+    private MenuItem fileMenuHeader;
+    private Menu fileMenu;
+    //    private MenuItem setResamplerItem;
+    //    private MenuItem startItem;
+
+    private Label progressLbl;
+
+    private Label jobsLbl;
+    private Table jobsTbl;
+    private TableColumn groupCol;
+    private TableColumn progressCol;
+    private TableColumn jobNameCol;
+    private TableColumn jobProgressCol;
+
+
+
+    public SchedulerFormMockup(Display display, SchedulerEvents schedulerEvents) {
+        taskGroups = new Hashtable<String, TableItem>();
+        tasks = new Hashtable<String, TableItem>();
+
+        shell = new Shell(display);
+        shell.setText("EASTWeb Scheduler");
+        shell.setLayout(new FormLayout());
+
+        this.schedulerEvents = schedulerEvents;
+
+        setupWidgets();
+        //setupListeners();
+    }
+
+    private void setupWidgets() {
+        //shell.setImage(new Image(shell.getDisplay(), "icon.bmp"));
+
+
+        // Setup the menu bar
+        menuBar = new Menu(shell, SWT.BAR);
+
+        fileMenuHeader = new MenuItem(menuBar, SWT.CASCADE);
+        fileMenuHeader.setText("&Scheduler");
+
+        fileMenu = new Menu(shell, SWT.DROP_DOWN);
+        fileMenuHeader.setMenu(fileMenu);
+
+        //setResamplerItem = new MenuItem(fileMenu, SWT.PUSH);
+        //setResamplerItem.setText("&Set MRT resampler tool location");
+
+        //startItem = new MenuItem(fileMenu, SWT.PUSH);
+        //startItem.setText("&Start processing");
+
+        MenuItem updateItm = new MenuItem(fileMenu, SWT.PUSH);
+        updateItm.setText("&Set update schedule");
+
+        MenuItem mrtItm = new MenuItem(fileMenu, SWT.PUSH);
+        mrtItm.setText("&Set MRT tool locations");
+
+        new MenuItem(fileMenu, SWT.SEPARATOR);
+
+        MenuItem exitItm = new MenuItem(fileMenu, SWT.PUSH);
+        exitItm.setText("&Exit");
+
+
+
+        MenuItem projectMenuHeader = new MenuItem(menuBar, SWT.CASCADE);
+        projectMenuHeader.setText("&Project");
+
+        Menu projectMenu = new Menu(shell, SWT.DROP_DOWN);
+        projectMenuHeader.setMenu(projectMenu);
+
+        MenuItem newProjectItm = new MenuItem(projectMenu, SWT.PUSH);
+        newProjectItm.setText("&Create new project");
+
+        MenuItem modifyProjectItm = new MenuItem(projectMenu, SWT.PUSH);
+        modifyProjectItm.setText("&Modify existing project");
+
+        MenuItem activeProjectsItm = new MenuItem(projectMenu, SWT.PUSH);
+        activeProjectsItm.setText("&Set active projects");
+
+        shell.setMenuBar(menuBar);
+
+
+        // Setup "Overall progress" table
+        Composite progressCmp = new Composite(shell, SWT.NONE);
+        {
+            FormData data = new FormData();
+            //data.top = new FormAttachment(0, 0);
+            data.right = new FormAttachment(100, 0);
+            data.left = new FormAttachment(0, 0);
+            //data.bottom = new FormAttachment(jobsCmp, 0);
+            //data.height = 300;
+            progressCmp.setLayoutData(data);
+
+            GridLayout layout = new GridLayout(3, false);
+            layout.marginWidth = 20;
+            layout.marginHeight = 20;
+            progressCmp.setLayout(layout);
+        }
+
+        progressLbl = new Label(progressCmp, SWT.NONE);
+        progressLbl.setText("Overall progress:");
+
+
+        //Label projectLbl = new Label(progressCmp, SWT.None);
+        //projectLbl.setText("Project:");
+        //projectLbl.setLayoutData(new GridData(SWT.RIGHT, SWT.CENTER, true, true));
+
+        Combo projectCmb = new Combo(progressCmp, SWT.DROP_DOWN);
+        projectCmb.setItems(new String[] {"Northern Great Plains","Ethiopia"});
+        //projectCmb.setLayoutData(new GridData(SWT.RIGHT, SWT.CENTER, false, true));
+
+
+        Table table = new Table(progressCmp, SWT.BORDER);
+        table.setHeaderVisible(true);
+        //table.setLinesVisible(true);
+        table.setLayoutData(new GridData(SWT.FILL, SWT.FILL, true, true, 3, 1));
+
+        groupCol = new TableColumn(table, SWT.NONE);
+        progressCol = new TableColumn(table, SWT.NONE);
+
+        groupCol.setText("Category");
+        progressCol.setText("Progress");
+
+        TableColumn completedCol = new TableColumn(table, SWT.CENTER);
+        completedCol.setText("Completed");
+
+        /*
+        for (String name : schedulerEvents.getTaskGroupNames()) {
+            TableItem item = new TableItem(table, SWT.NONE);
+            item.setText(name);
+
+            ProgressBar progressBar = new ProgressBar(table, SWT.SMOOTH);
+
+            TableEditor editor = new TableEditor(table);
+            editor.grabHorizontal = editor.grabVertical = true;
+            editor.setEditor(progressBar, item, 1);
+
+            item.setData(progressBar);
+            item.setData("editor", editor);
+
+            item.setText(2, "--");
+
+            taskGroups.put(name, item);
+        }
+         */
+
+        groupCol.setWidth(200);
+        progressCol.setWidth(100);
+        completedCol.pack();
+
+        table.pack();
+
+        progressCmp.pack();
+
+
+
+        // Setup "Active jobs" table
+        final Composite jobsCmp = new Composite(shell, SWT.NONE);
+        {
+            FormData data = new FormData();
+            data.bottom = new FormAttachment(100, 0);
+            data.right = new FormAttachment(100, 0);
+            data.left = new FormAttachment(0, 0);
+            data.top = new FormAttachment(progressCmp, 0);
+            data.height = 220;
+            data.width = 500;
+            jobsCmp.setLayoutData(data);
+
+            GridLayout layout = new GridLayout(1, false);
+            layout.marginWidth = 20;
+            layout.marginHeight = 20;
+            jobsCmp.setLayout(layout);
+        }
+
+        jobsLbl = new Label(jobsCmp, SWT.NONE);
+        jobsLbl.setText("Active jobs");
+
+        jobsTbl = new Table(jobsCmp, SWT.BORDER);
+        jobsTbl.setLayoutData(new GridData(SWT.FILL, SWT.FILL, true, true));
+        jobsTbl.setHeaderVisible(true);
+
+        jobsTbl.layout(true);
+        //jobsTbl.setLinesVisible(true);
+
+        jobNameCol = new TableColumn(jobsTbl, SWT.NONE);
+        jobNameCol.setText("Name");
+
+        jobProgressCol = new TableColumn(jobsTbl, SWT.NONE);
+        jobProgressCol.setText("Progress");
+
+        TableColumn jobCompletedCol = new TableColumn(jobsTbl, SWT.CENTER);
+        jobCompletedCol.setText("Completed");
+        jobCompletedCol.pack();
+
+
+        jobNameCol.setWidth(250);
+        jobProgressCol.setWidth(100);
+
+        jobsCmp.pack();
+
+
+
+
+
+        shell.pack();
+    }
+
+    private void setupListeners() {
+
+        schedulerEvents.addSchedulerEventListener(new SchedulerEventListener() {
+
+            @Override
+            public void newTask(final String taskName, final boolean reportsProgress) {
+                Display.getDefault().asyncExec(new Runnable() {
+                    @Override
+                    public void run() {
+                        SchedulerFormMockup.this.addNewTask(taskName, reportsProgress);
+                    }
+                });
+            }
+
+            @Override
+            public void taskUpdated(final String taskName, final int progress, final int total) {
+                Display.getDefault().asyncExec(new Runnable() {
+                    @Override
+                    public void run() {
+                        SchedulerFormMockup.this.updateTask(taskName, progress, total);
+                    }
+                });
+            }
+
+            @Override
+            public void taskCompleted(final String taskName) {
+                Display.getDefault().asyncExec(new Runnable() {
+                    @Override
+                    public void run() {
+                        SchedulerFormMockup.this.taskCompleted(taskName);
+                    }
+                });
+            }
+
+            @Override
+            public void taskFailed(final String taskName, final Throwable cause) {
+                Display.getDefault().asyncExec(new Runnable() {
+                    @Override
+                    public void run() {
+                        SchedulerFormMockup.this.taskFailed(taskName);
+                    }
+                });
+            }
+
+            @Override
+            public void taskGroupUpdated(final String taskGroupName, final int progress,
+                    final int total) {
+                Display.getDefault().asyncExec(new Runnable() {
+                    @Override
+                    public void run() {
+                        SchedulerFormMockup.this.taskGroupUpdated(taskGroupName, progress, total);
+                    }
+                });
+            }
+
+        });
+
+
+    }
+
+    private void addNewTask(String taskName, boolean reportsProgress) {
+        TableItem item = new TableItem(jobsTbl, SWT.NONE);
+        item.setText(taskName);
+
+
+        ProgressBar progressBar;
+        if (reportsProgress) {
+            progressBar = new ProgressBar(jobsTbl, SWT.NONE);
+        } else {
+            progressBar = new ProgressBar(jobsTbl, SWT.INDETERMINATE);
+        }
+
+
+        TableEditor editor = new TableEditor(jobsTbl);
+        editor.grabHorizontal = editor.grabVertical = true;
+        editor.setEditor(progressBar, item, 1);
+
+        item.setData(progressBar);
+        item.setData("editor", editor);
+
+        item.setText(2, "--");
+
+        tasks.put(taskName, item);
+    }
+
+    private void updateTask(String taskName, int progress, int total) {
+        ProgressBar progressBar = (ProgressBar)tasks.get(taskName).getData();
+        progressBar.setMaximum(total);
+        progressBar.setSelection(progress);
+
+        tasks.get(taskName).setText(2, Integer.toString(progress) + "/" + Integer.toString(total));
+    }
+
+    private void taskCompleted(String taskName) {
+        TableItem item = tasks.get(taskName);
+
+        ProgressBar progressBar = ((ProgressBar)item.getData());
+        progressBar.dispose();
+
+        TableEditor editor = (TableEditor) item.getData("editor");
+        editor.dispose();
+
+        jobsTbl.remove(jobsTbl.indexOf(item));
+
+        tasks.remove(taskName);
+
+
+        for (TableItem item2 : jobsTbl.getItems()) {
+            TableEditor editor2 = (TableEditor) item2.getData("editor");
+            editor2.layout();
+        }
+    }
+
+    /**
+     * Handles the failure of a task. Currently just tells the progress bar to
+     * show that something went wrong with the task by turning the status bar
+     * red.
+     * 
+     * @param taskName
+     */
+    private void taskFailed(String taskName) {
+        ProgressBar progressBar = (ProgressBar) tasks.get(taskName).getData();
+        progressBar.setState(SWT.ERROR);
+    }
+
+    private void taskGroupUpdated(String taskGroupName, int progress, int total) {
+        ProgressBar progressBar = (ProgressBar) taskGroups.get(taskGroupName).getData();
+        progressBar.setMaximum(total);
+        progressBar.setSelection(progress);
+
+        taskGroups.get(taskGroupName).setText(2, Integer.toString(progress) + "/" + Integer.toString(total));
+    }
+
+    public void open() {
+        shell.open();
+    }
+
+    public boolean isDisposed() {
+        return shell.isDisposed();
+    }
+
+    public static void main(String[] args) {
+        Display display = new Display();
+        Shell shell = new Shell(display);
+
+        shell.open();
+
+        SchedulerFormMockup form = new SchedulerFormMockup(display, null);
+        form.open();
+
+        while (!shell.isDisposed()) {
+            if (!display.readAndDispatch()) {
+                display.sleep();
+            }
+        }
+    }
+
+}

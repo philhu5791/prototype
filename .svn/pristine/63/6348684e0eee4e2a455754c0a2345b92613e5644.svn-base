@@ -1,0 +1,60 @@
+package edu.sdstate.eastweb.prototype.database;
+
+import java.sql.SQLException;
+
+import org.eclipse.swt.SWT;
+import org.eclipse.swt.layout.FillLayout;
+import org.eclipse.swt.widgets.Dialog;
+import org.eclipse.swt.widgets.ProgressBar;
+import org.eclipse.swt.widgets.Shell;
+
+
+import edu.sdstate.eastweb.prototype.ConfigReadException;
+
+public class QueryProgress extends Dialog {
+    Shell shell;
+    private String fields;
+    private String query;
+    private QueryResult result;
+
+    public QueryProgress(Shell parent, String fields, SQL query) {
+        super(parent);
+        this.fields = fields;
+        this.query = query.getQuery();
+    }
+
+    public void open() throws ConfigReadException, SQLException {
+        shell = new Shell(getParent(), SWT.APPLICATION_MODAL | SWT.CLOSE);
+        shell.setText("Querying ..");
+        shell.setSize(300,50);
+        shell.setLayout(new FillLayout());
+
+        shell.setLocation(
+                getParent().getLocation().x + (getParent().getSize().x - shell.getSize().x)/2,
+                getParent().getLocation().y + (getParent().getSize().y - shell.getSize().y)/2
+        );
+
+        setupWidgets();
+
+
+    }
+
+    public void setupWidgets() throws ConfigReadException, SQLException {
+        ProgressBar bar = new ProgressBar(shell, SWT.SMOOTH);
+        bar.setBounds(10, 10, 200, 32);
+        shell.open();
+
+        for (int i = 0; i <= bar.getMaximum(); i++) {
+            try {
+                result = new QueryResult(shell, fields.split(","), query);
+            } catch (Throwable th) {
+                th.printStackTrace();
+            }
+            bar.setSelection(i);
+        }
+
+        result.open();
+        shell.pack();
+        shell.close();
+    }
+}

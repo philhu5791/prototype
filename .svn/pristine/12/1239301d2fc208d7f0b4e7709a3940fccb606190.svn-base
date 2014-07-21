@@ -1,0 +1,34 @@
+# Args: [fieldname] [dataset]
+
+import arcpy
+import sys
+from xml.dom.minidom import getDOMImplementation
+
+def addRow(document, parent, fieldValue, count, sum, mean, stdev):
+    row = document.createElement("Row")
+    row.setAttribute("fieldValue", str(fieldValue))
+    row.setAttribute("count", str(count))
+    row.setAttribute("sum", str(sum))
+    row.setAttribute("mean", str(mean))
+    row.setAttribute("stdev", str(stdev))
+    parent.appendChild(row)
+
+def addRowElements(field, dataset, document, parent):
+    rows = arcpy.SearchCursor(dataset)
+
+    for row in rows:
+        fieldValue = row.getValue(field)
+        count = row.getValue("COUNT")
+        sum = row.getValue("SUM")
+        mean = row.getValue("MEAN")
+        stdev = row.getValue("STD")
+        addRow(document, parent, fieldValue, count, sum, mean, stdev)
+
+def process(field, dataset):
+    impl = getDOMImplementation()
+    document = impl.createDocument(None, "Rows", None)
+    root = document.documentElement
+    addRowElements(field, dataset, document, root)
+    print document.toprettyxml(indent="    ", encoding="utf-8")
+
+process(*sys.argv[1:])

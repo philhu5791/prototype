@@ -1,0 +1,173 @@
+package edu.sdstate.eastweb.prototype.indices;
+
+import java.io.File;
+import java.util.Map;
+
+import org.gdal.gdal.Band;
+import org.gdal.gdal.Dataset;
+import org.gdal.gdal.gdal;
+import org.gdal.gdalconst.gdalconst;
+
+import edu.sdstate.eastweb.prototype.util.GdalUtils;
+
+public class NdviCalculatorGdalImpl implements IndexCalculator {
+
+    private final File mRed;
+    private final File mNir;
+    private final File mOutput;
+
+    public NdviCalculatorGdalImpl(File red, File nir, File output) {
+        mRed = red;
+        mNir = nir;
+        mOutput = output;
+    }
+
+    //    @Override
+    //    public void compute() throws Exception {
+    //        GdalUtils.register();
+    //
+    //        synchronized (GdalUtils.lockObject) {
+    //            Dataset nirDS = gdal.Open(mNir.getPath());
+    //            Dataset redDS = gdal.Open(mRed.getPath());
+    //
+    //            //        Dataset outputDS = gdal.GetDriverByName("GTiff").CreateCopy(
+    //            //                mOutput.getPath(), nirDS);
+    //
+    //            Dataset outputDS = gdal.GetDriverByName("GTiff").Create(
+    //                    mOutput.getPath(),
+    //                    nirDS.GetRasterXSize(),
+    //                    nirDS.GetRasterYSize(),
+    //                    1,
+    //                    gdalconst.GDT_Float32
+    //                    );
+    //
+    //            outputDS.SetGeoTransform(nirDS.GetGeoTransform());
+    //            outputDS.SetProjection(nirDS.GetProjection());
+    //            outputDS.SetMetadata(nirDS.GetMetadata_Dict());
+    //
+    //            double[] outputArray = new double[outputDS.GetRasterXSize()];
+    //            double[] nirArray = new double[nirDS.getRasterXSize()];
+    //            double[] redArray = new double[redDS.getRasterXSize()];
+    //            for (int y=0; y<nirDS.getRasterYSize(); y++) {
+    //                nirDS.GetRasterBand(1).ReadRaster(0, y, nirDS.getRasterXSize(), 1, nirArray);
+    //                redDS.GetRasterBand(1).ReadRaster(0, y, redDS.getRasterXSize(), 1, redArray);
+    //                for (int x=0; x<nirArray.length; x++) {
+    //                    if (nirArray[x] == 32767 || redArray[x] == 32767) {
+    //                        outputArray[x] = -3.40282346639e+038;
+    //                    } else {
+    //                        outputArray[x] = (nirArray[x] - redArray[x])/(nirArray[x] + redArray[x]);
+    //                    }
+    //                }
+    //                outputDS.GetRasterBand(1).WriteRaster(0, y, redDS.getRasterXSize(), 1, outputArray);
+    //            }
+    //
+    //            // Calculate statistics
+    //            for (int i=1; i<=outputDS.GetRasterCount(); i++) {
+    //                Band band = outputDS.GetRasterBand(i);
+    //
+    //                band.SetNoDataValue(-3.40282346639e+038); // FIXME
+    //                band.ComputeStatistics(false);
+    //            }
+    //
+    //            outputDS.delete();
+    //        }
+    //    }
+
+    @Override
+    public void calculate() throws Exception {
+        GdalUtils.register();
+
+        Dataset[] inputs = openInputs();
+        Dataset outputDS = createOutput(inputs);
+
+        process(inputs, outputDS);
+
+        // Calculate statistics
+        for (int i=1; i<=outputDS.GetRasterCount(); i++) {
+            Band band = outputDS.GetRasterBand(i);
+
+            band.SetNoDataValue(-3.40282346639e+038); // FIXME
+            band.ComputeStatistics(false);
+        }
+
+        for (Dataset input : inputs) {
+            input.delete();
+        }
+        outputDS.delete();
+    }
+
+    private void process(Dataset[] inputs, Dataset output) {
+        // NOTE: assumed that inputs and outputs are all the same size and projection
+        int xSize = inputs[0].GetRasterXSize();
+        int ySize = inputs[0].GetRasterYSize();
+
+        double[][] inputsArray = new double[inputs.length][xSize];
+        double[] outputArray = new double[xSize];
+
+        for (int y=0; y<ySize; y++) {
+            for (int i=0; i<inputs.length; i++) {
+                inputs[i].GetRasterBand(1).ReadRaster(0, y, xSize, 1, inputsArray[i]);
+            }
+
+            for (int x=0; x<xSize; x++) {
+                double[] values = new double[inputs.length];
+                for (int i=0; i<inputs.length; i++) {
+                    values[i] = inputsArray[i][x];
+                }
+
+                outputArray[x] = calculateValue(values);
+            }
+
+            output.GetRasterBand(1).WriteRaster(0, y, xSize, 1, outputArray);
+        }
+
+    }
+
+    private static final int RED = 0;
+    private static final int NIR = 1;
+
+    private Dataset[] openInputs() {
+        Dataset[] array = new Dataset[2];
+        array[RED] = gdal.Open(mRed.getPath());
+        array[NIR] = gdal.Open(mNir.getPath());
+
+        return array;
+    }
+
+    private Dataset createOutput(Dataset[] inputs) {
+        Dataset outputDS = gdal.GetDriverByName("GTiff").Create(
+                mOutput.getPath(),
+                inputs[0].GetRasterXSize(),
+                inputs[0].GetRasterYSize(),
+                1,
+                gdalconst.GDT_Float32
+                );
+
+        outputDS.SetGeoTransform(inputs[0].GetGeoTransform());
+        outputDS.SetProjection(inputs[0].GetProjection());
+        outputDS.SetMetadata(inputs[0].GetMetadata_Dict());
+
+        return outputDS;
+    }
+
+    private double calculateValue(double[] values) {
+        if (values[NIR] == 32767 || values[RED] == 32767) {
+            return -3.40282346639e+038;
+        } else {
+            return (values[NIR] - values[RED]) / (values[RED] + values[NIR]);
+            // SAVI = (NIR - RED*(1+L))/(NIR + RED + L), where L=0.5
+            //return (values[NIR] - values[RED]*(1+0.5)) / (values[NIR] + values[RED] + 0.5);
+        }
+    }
+
+    public static void main(String[] args) throws Exception {
+        NdviCalculatorGdalImpl calculator = new NdviCalculatorGdalImpl(
+                new File(args[0]),
+                new File(args[1]),
+                new File(args[2])
+                );
+
+        calculator.calculate();
+    }
+
+}

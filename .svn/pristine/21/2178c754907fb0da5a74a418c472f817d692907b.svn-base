@@ -1,0 +1,52 @@
+package edu.sdstate.eastweb.prototype.filetransfer;
+
+import java.util.Map;
+import java.util.HashMap;
+
+/**
+ * Static class in charge of handling requests for files from a particular
+ * file transfer server.
+ * 
+ * @author Isaiah Snell-Feikema
+ */
+public class DownloadManager {
+
+    private static Map<String, TransferClient> activeDownloads = new HashMap<String, TransferClient>();
+
+    private DownloadManager() {
+    }
+
+    /**
+     * Attempts to download the specified file from the specified address. If
+     * the download is a failure, it throws an exception.
+     */
+    public static void download(String address, String filename) throws Throwable {
+        TransferClient client = null;
+        boolean active;
+        synchronized (activeDownloads) {
+            active = activeDownloads.containsKey(filename);
+        }
+        if (!active) {
+            synchronized (activeDownloads) {
+                client = new TransferClient(address, filename);
+                client.start();
+                activeDownloads.put(filename, client);
+            }
+            client.join();
+            synchronized (activeDownloads) {
+                activeDownloads.remove(filename);
+            }
+            System.out.println(filename + " request finished.");
+        } else {
+            synchronized (activeDownloads) {
+                client = activeDownloads.get(filename);
+            }
+            client.join();
+        }
+
+        if (client.getThrowable() != null) {
+            throw client.getThrowable();
+        }
+    }
+
+}

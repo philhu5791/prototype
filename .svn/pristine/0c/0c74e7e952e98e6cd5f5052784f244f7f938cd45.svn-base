@@ -1,0 +1,36 @@
+# Note: will not work when there is a pre-existing raster with the
+#       same name as the output!
+
+import sys, os
+
+import arcpy
+from arcpy.sa import *
+
+arcpy.env.overwriteOutput = True
+
+_, arcpy.env.workspace, etoList, inCS, outCS, resamplingType, cellSize, transform, output = sys.argv
+arcpy.CheckOutExtension("Spatial")
+
+etoList = etoList.split(";")
+
+print("Creating composite...")
+etoComposite = etoList[0]
+for eto in etoList[1:]:
+    etoComposite = Plus(etoComposite, eto)
+
+etoComposite = Divide(etoComposite, len(etoList))
+
+print("Defining coordinate system...")
+arcpy.DefineProjection_management(etoComposite, inCS)
+
+print("Reprojecting...")
+arcpy.ProjectRaster_management(
+    etoComposite,
+    output,
+    outCS,
+    resamplingType,
+    cellSize,
+    transform,
+    "#",
+    "#" #inCS
+)

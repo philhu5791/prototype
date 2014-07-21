@@ -1,0 +1,13 @@
+package edu.sdstate.eastweb.prototype.scheduler;
+
+public abstract class Worker implements Runnable {
+
+    protected Queue mQueue;
+    protected SchedulerFeedback mFeedback;
+
+    public Worker(Queue queue, SchedulerFeedback feedback) {
+        mQueue = queue;
+        mFeedback = feedback;
+    }
+
+}

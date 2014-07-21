@@ -1,0 +1,33 @@
+package edu.sdstate.eastweb.prototype.scheduler;
+
+import edu.sdstate.eastweb.prototype.scheduler.framework.RunnableTask;
+
+public class RunnableQueueEntry extends QueueEntry {
+
+    public RunnableQueueEntry(Type type, int priority, RunnableTask task,
+            Runnable continuation) {
+        super(type, priority, task, continuation);
+    }
+
+    public RunnableQueueEntry(int priority, RunnableTask task,
+            Runnable continuation) {
+        super(Type.SKIP_CHECK, priority, task, continuation);
+    }
+
+    @Override
+    public boolean shouldTerminate() {
+        return false;
+    }
+
+    @Override
+    public boolean getCanSkip() {
+        return ((RunnableTask)mTask).getCanSkip();
+    }
+
+    @Override
+    public void doContinuation() {
+        Runnable runnable = (Runnable)mContinuation;
+        runnable.run();
+    }
+
+}

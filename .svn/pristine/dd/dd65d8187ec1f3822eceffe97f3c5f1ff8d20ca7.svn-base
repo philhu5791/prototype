@@ -1,0 +1,270 @@
+package edu.sdstate.eastweb.prototype.reprojection;
+
+import java.io.*;
+import java.util.Map;
+
+import edu.sdstate.eastweb.prototype.*;
+import edu.sdstate.eastweb.prototype.Projection.*;
+
+/**
+ * Module in charge of the reprojection of Modis products using the Modis
+ * Reprojection Tool.
+ * 
+ * @author Isaiah Snell-Feikema
+ * @author Sangik Kim
+ */
+public class ModisReprojection {
+
+    /**
+     * Reprojects Modis products.
+     * 
+     * @param inputFiles
+     * @param bands what bands to reproject
+     * @param projection
+     * @param outputFile
+     * @throws Exception
+     */
+    public void reprojectModis(File[] inputFiles, boolean bands[],
+            Projection projection, File outputFile) throws Exception {
+
+        // Mosaic the input files
+        File mosaicOutput = mosaicModis(inputFiles);
+
+        // Create a parameter file
+        File parameterFile = createParameterFile(projection, mosaicOutput, bands, outputFile);
+
+        // Resample the mosaic
+        resampleModis(parameterFile, outputFile);
+
+        // Clean up
+        mosaicOutput.delete();
+        parameterFile.delete();
+    }
+
+
+    /**
+     * Mosaics Modis tiles into a temporary HDF file.
+     * 
+     * @param inputFiles
+     * @return the temporary HDF file
+     * @throws Exception
+     */
+    private File mosaicModis(File inputFiles[])
+    throws Exception
+    {
+        File filenamesFile = writeFilenameFile(inputFiles);
+
+        File mosaicOutput = File.createTempFile("mosaic", ".hdf");
+        mosaicOutput.deleteOnExit();
+
+        // Call the MRT mosaic tool
+        ProcessBuilder processBuilder = new ProcessBuilder(
+                Config.getInstance().getMosiacPath(),
+                "-i", filenamesFile.getAbsolutePath(),
+                "-o", mosaicOutput.getAbsolutePath()
+        );
+
+        setEnvironmentVariables(processBuilder.environment());
+        Process mosaic = processBuilder.start();
+
+        // Print the output and wait for it to finish
+        printOutput(mosaic.getInputStream());
+        mosaic.waitFor(); // FIXME: need timeout?
+
+        if (mosaic.exitValue() != 0) {
+            throw new Exception("Mosaic return code was non-zero.");
+        }
+
+        return mosaicOutput;
+    }
+
+
+    /**
+     * Writes filenames to a temporary file.
+     * 
+     * @param inputFiles
+     * @return filenames file.
+     * @throws IOException
+     */
+    private File writeFilenameFile(File[] inputFiles) throws IOException {
+        File filenamesFile = File.createTempFile("mrt_filenames", ".txt");
+        filenamesFile.deleteOnExit();
+
+        PrintWriter out = new PrintWriter(
+                new BufferedWriter(
+                        new FileWriter(filenamesFile)));
+        for (File file : inputFiles) {
+            out.print("\"");
+            out.print(file.getAbsolutePath());
+            out.print("\" ");
+        }
+        out.close();
+
+        return filenamesFile;
+    }
+
+
+    /**
+     * Uses MRT to resample a HDF file.
+     * 
+     * @param parameterFile the parameter file to use.
+     * @param outputFile the resampled file
+     * @throws Exception
+     */
+    private void resampleModis(File parameterFile, File outputFile) throws Exception
+    {
+        // Call the MRT resampling tool
+        ProcessBuilder processBuilder = new ProcessBuilder(
+                Config.getInstance().getResamplerPath(),
+                "-p", parameterFile.getAbsolutePath(),
+                "-o", outputFile.getAbsolutePath()
+        );
+
+        setEnvironmentVariables(processBuilder.environment());
+        Process modis = processBuilder.start();
+
+        // Print output and wait for it to finish
+        printOutput(modis.getInputStream());
+        modis.waitFor(); // FIXME: timeout?
+
+        if (modis.exitValue() != 0) {
+            throw new Exception("Resampler return code was non-zero.");
+        }
+    }
+
+
+    /**
+     * Writes the specified projection object to a MRT parameter file (*.prm).
+     * 
+     * @param projection
+     * @param inputFiles .HDF files to convert
+     * @param outputFile MRT reprojection output file
+     * @throws IOException
+     */
+    private File createParameterFile(Projection projection, File inputFile,
+            boolean[] bands, File outputFile) throws IOException {
+
+        File parameterFile = File.createTempFile("projection", ".prm");
+        parameterFile.deleteOnExit();
+
+        PrintWriter out =
+            new PrintWriter(
+                    new BufferedWriter(
+                            new FileWriter(parameterFile)));
+
+        out.print("INPUT_FILENAME = ");
+        out.println(inputFile.toString());
+
+        out.print("SPECTRAL_SUBSET = ( ");
+        for (boolean band : bands) {
+            if (band) {
+                out.print("1");
+            } else {
+                out.print("0");
+            }
+            out.print(" ");
+        }
+        out.println(")");
+        out.println();
+
+        out.print("OUTPUT_FILENAME = \"");
+        out.print(outputFile);
+        out.println("\"");
+
+        out.print("RESAMPLING_TYPE = ");
+        out.println(projection.getResamplingType());
+        out.println();
+
+        out.print("OUTPUT_PROJECTION_TYPE = ");
+        if (projection.getProjectionType() == ProjectionType.ALBERS_EQUAL_AREA) {
+            out.println("AEA");
+        } else if (projection.getProjectionType() == ProjectionType.LAMBERT_CONFORMAL_CONIC) {
+            out.println("LCC");
+        } else if (projection.getProjectionType() == ProjectionType.TRANSVERSE_MERCATOR) {
+            out.println("TM");
+        }
+        out.println();
+
+
+        out.print("OUTPUT_PROJECTION_PARAMETERS = ( 0 0");
+
+        if (projection.getProjectionType() == ProjectionType.ALBERS_EQUAL_AREA ||
+                projection.getProjectionType() == ProjectionType.LAMBERT_CONFORMAL_CONIC) {
+            out.print(" ");
+            out.print(projection.getStandardParallel1());
+
+            out.print(" ");
+            out.print(projection.getStandardParallel2());
+        } else if (projection.getProjectionType() == ProjectionType.TRANSVERSE_MERCATOR) {
+            out.print(" ");
+            out.print(projection.getScalingFactor());
+
+            out.print(" 0.0"); // Empty parameter slot
+        }
+
+        out.print(" ");
+        out.print(projection.getCentralMeridian());
+
+        out.print(" ");
+        out.print(projection.getLatitudeOfOrigin());
+
+        out.print(" ");
+        out.print(projection.getFalseEasting());
+
+        out.print(" ");
+        out.print(projection.getFalseNorthing());
+
+        //out.print(" 0.0 0.0 0.0 0.0 0.0 0.0 0.0"); // Remaining unused parameters // FIXME: should I have this?!
+
+        out.println(" )");
+        out.println();
+
+
+        out.print("DATUM = ");
+        out.println(projection.getDatum());
+        out.println();
+
+        out.print("OUTPUT_PIXEL_SIZE = ");
+        out.println(projection.getPixelSize());
+
+        out.close();
+
+        return parameterFile;
+    }
+
+
+    /**
+     * Sets environment variables used by MRT.
+     * @param environment
+     * @throws IOException
+     */
+    private void setEnvironmentVariables(Map<String, String> environment) throws ConfigReadException {
+        environment.put(
+                "MRTHOME",
+                new File(Config.getInstance().getMRTDir()).getAbsolutePath()
+        );
+        environment.put(
+                "MRTDATADIR",
+                new File(Config.getInstance().getMRTDir(), "data").getAbsolutePath()
+        );
+        environment.put(
+                "Path",
+                new File(Config.getInstance().getMRTDir(), "bin").getAbsolutePath() + ";%Path%"
+        );
+    }
+
+
+    /**
+     * Displays output from an InputStream.
+     * 
+     * @param inputStream
+     * @throws IOException
+     */
+    private void printOutput(InputStream inputStream) throws IOException {
+        int ch;
+        while ((ch=inputStream.read()) != -1) {
+            System.out.write(ch);
+        }
+    }
+
+}

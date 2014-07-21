@@ -1,0 +1,56 @@
+import sys
+
+import arcpy
+from arcpy.sa import *
+
+import indicator_util
+
+arcpy.env.overwriteOutput = True
+
+_, arcpy.env.workspace, day, night, watermask, shapefiles, dayOutputs, meanOutputs, nightOutputs = sys.argv
+rescalingFactor = 0.02
+
+shapefiles = shapefiles.split(';')
+dayOutputs = dayOutputs.split(';')
+meanOutputs = meanOutputs.split(';')
+nightOutputs = nightOutputs.split(';')
+
+arcpy.CheckOutExtension("Spatial")
+
+print("Setting everything not one to zero in watermask...")
+watermask = EqualTo(watermask, 1)
+watermask = SetNull(watermask, watermask, """"Value" = 0""")
+
+print("Applying watermask...")
+day = Times(day, watermask)
+night = Times(night, watermask)
+
+print("Setting null value...")
+day = SetNull(day, day, """"Value" = 0""")
+night = SetNull(night, night, """"Value" = 0""")
+
+print("Calculating...")
+mean = Plus(day, night)
+mean = Divide(mean, 2)
+
+print("Rescaling")
+day = Times(day, rescalingFactor)
+mean = Times(mean, rescalingFactor)
+night = Times(night, rescalingFactor)
+
+print("Convert from kelvin to celcius")
+day = Minus(day, 273.15)
+mean = Minus(mean, 273.15)
+night = Minus(night, 273.15)
+
+print("Clipping...")
+dayResults = indicator_util.clip(day, shapefiles)
+meanResults = indicator_util.clip(mean, shapefiles)
+nightResults = indicator_util.clip(night, shapefiles)
+
+print("Saving...")
+indicator_util.save(dayResults, dayOutputs)
+indicator_util.save(meanResults, meanOutputs)
+indicator_util.save(nightResults, nightOutputs)
+
+print("Finished.")

@@ -1,0 +1,381 @@
+package edu.sdstate.eastweb.prototype.scheduler;
+
+import java.util.ArrayList;
+import java.util.Arrays;
+import java.util.Collections;
+import java.util.HashMap;
+import java.util.HashSet;
+import java.util.List;
+import java.util.Map;
+import java.util.Set;
+import java.util.concurrent.PriorityBlockingQueue;
+
+import edu.sdstate.eastweb.prototype.DataDate;
+import edu.sdstate.eastweb.prototype.ModisTile;
+import edu.sdstate.eastweb.prototype.ProjectInfo;
+import edu.sdstate.eastweb.prototype.download.EtoArchive;
+import edu.sdstate.eastweb.prototype.download.ModisId;
+import edu.sdstate.eastweb.prototype.download.ModisProduct;
+import edu.sdstate.eastweb.prototype.download.cache.DateCache;
+import edu.sdstate.eastweb.prototype.download.cache.EtoArchiveCache;
+import edu.sdstate.eastweb.prototype.download.cache.ModisTileCache;
+import edu.sdstate.eastweb.prototype.indices.EnvironmentalIndex;
+import edu.sdstate.eastweb.prototype.scheduler.BaseTaskQueue.CallableTaskQueueEntry;
+import edu.sdstate.eastweb.prototype.scheduler.BaseTaskQueue.QueueEntry;
+import edu.sdstate.eastweb.prototype.scheduler.BaseTaskQueue.RunnableTaskQueueEntry;
+import edu.sdstate.eastweb.prototype.scheduler.framework.Action;
+import edu.sdstate.eastweb.prototype.scheduler.framework.Action2;
+import edu.sdstate.eastweb.prototype.scheduler.framework.CallableTask;
+import edu.sdstate.eastweb.prototype.scheduler.framework.RunnableTask;
+import edu.sdstate.eastweb.prototype.scheduler.framework.Task;
+import edu.sdstate.eastweb.prototype.scheduler.tasks.DownloadModisTask;
+import edu.sdstate.eastweb.prototype.scheduler.tasks.UpdateModisDateCacheTask;
+import edu.sdstate.eastweb.prototype.scheduler.tasks.UpdateModisTileCacheTask;
+
+public class ProcessingTaskQueue {
+
+    private enum EntryType {
+        ACTUAL_TASK,
+        SKIP_CHECK
+    }
+
+    private static final int TERMINATE_PRIORITY = -1; // Highest priority
+
+    public abstract class QueueEntry implements Comparable<QueueEntry> {
+        protected final EntryType mEntryType;
+        protected final int mPriority;
+
+        public QueueEntry(EntryType entryType, int priority) {
+            mEntryType = entryType;
+            mPriority = priority;
+        }
+
+        public abstract boolean getShouldTerminate();
+
+        public abstract Task getTask();
+        public abstract void run();
+
+        @Override
+        public int compareTo(QueueEntry o) {
+            // Sort by entry type -- skip checks come first, followed by actual tasks
+            int cmp = mEntryType.ordinal() - o.mEntryType.ordinal();
+            if (cmp != 0) {
+                return cmp;
+            }
+
+            return mPriority - o.mPriority;
+        }
+    }
+
+    protected final class TerminateQueueEntry extends QueueEntry {
+        public TerminateQueueEntry() {
+            super(EntryType.SKIP_CHECK, TERMINATE_PRIORITY);
+        }
+
+        @Override
+        public boolean getShouldTerminate() {
+            return true;
+        }
+
+        @Override
+        public Task getTask() {
+            return null;
+        }
+
+        @Override
+        public void run() {
+        }
+    }
+
+    protected final class CallableTaskQueueEntry<T> extends QueueEntry {
+        private final CallableTask<T> mCallableTask;
+        private final Action<T> mContinuation;
+        private final boolean mIsRetry;
+
+        private CallableTaskQueueEntry(EntryType entryType, int priority,
+                CallableTask<T> callableTask, Action<T> continuation, boolean isRetry) {
+            super(entryType, priority);
+            mCallableTask = callableTask;
+            mContinuation = continuation;
+            mIsRetry = isRetry;
+        }
+
+        public CallableTaskQueueEntry(int priority, CallableTask<T> callableTask,
+                Action<T> continuation) {
+            this(EntryType.SKIP_CHECK, priority, callableTask, continuation, false);
+        }
+
+        @Override
+        public boolean getShouldTerminate() {
+            return false;
+        }
+
+        @Override
+        public Task getTask() {
+            return mCallableTask;
+        }
+
+        @Override
+        public void run() {
+            switch (mEntryType) {
+            case SKIP_CHECK:
+                runSkipCheck();
+                break;
+
+            case ACTUAL_TASK:
+                runActualTask();
+                break;
+            }
+        }
+
+        private void runSkipCheck() {
+            final T canSkip;
+            try {
+                canSkip = mCallableTask.getCanSkip();
+            } catch (Throwable e) {
+                ErrorLog.add("BaseTaskQueue: a skip check threw an exception", e);
+                return;
+            }
+
+            if (canSkip != null) {
+                // TODO: Remove debug prints
+                System.out.println("Skipping task: " + mCallableTask.getName());
+
+                // Task is skippable -- call the continuation
+                if (mContinuation != null) {
+                    try {
+                        mContinuation.act(canSkip);
+                    } catch (Throwable e) {
+                        ErrorLog.add("BaseTaskQueue: a task continuation thew an exception", e);
+                    }
+                }
+            } else {
+                // TODO: Remove debug prints
+                System.out.println("Re-enqueing actual task: " + mCallableTask.getName());
+
+                // Task is not skippable -- re-enqueue to actually run
+                enqueue(new CallableTaskQueueEntry<T>(
+                        EntryType.ACTUAL_TASK, mPriority, mCallableTask, mContinuation, false));
+            }
+        }
+
+        private void runActualTask() {
+            // TODO: Remove debug prints
+            System.out.println("Running task: " + mCallableTask.getName());
+
+            onNewTask(mCallableTask);
+
+            final T result;
+            try {
+                result = mCallableTask.call();
+            } catch (Throwable e) {
+                onTaskFailed(mCallableTask, e);
+
+                if (!mIsRetry) {
+                    // Retry once automatically
+                    enqueue(new CallableTaskQueueEntry<T>(
+                            EntryType.ACTUAL_TASK, mPriority, mCallableTask, mContinuation, true));
+                }
+                return;
+            }
+
+            // TODO: Remove debug prints
+            final StringBuilder sb = new StringBuilder();
+            sb.append("Outputs:");
+            try {
+                for (String output : mCallableTask.getOutputs()) {
+                    sb.append(' ').append(output);
+                }
+            } catch (Throwable e) {
+                sb.append(" [").append(e.getMessage()).append("]");
+            }
+            System.out.println(sb.toString());
+
+            onTaskCompleted(mCallableTask);
+
+            if (mContinuation != null) {
+                try {
+                    mContinuation.act(result);
+                } catch (Throwable e) {
+                    ErrorLog.add("BaseTaskQueue: a task continuation threw an exception", e);
+                }
+            }
+        }
+    }
+
+    protected final class RunnableTaskQueueEntry extends QueueEntry {
+        private final RunnableTask mRunnableTask;
+        private final Runnable mContinuation;
+        private final boolean mIsRetry;
+
+        private RunnableTaskQueueEntry(EntryType entryType, int priority, RunnableTask runnableTask,
+                Runnable continuation, boolean isRetry) {
+            super(entryType, priority);
+            mRunnableTask = runnableTask;
+            mContinuation = continuation;
+            mIsRetry = isRetry;
+        }
+
+        public RunnableTaskQueueEntry(int priority, RunnableTask runnableTask,
+                Runnable continuation) {
+            this(EntryType.SKIP_CHECK, priority, runnableTask, continuation, false);
+        }
+
+        @Override
+        public boolean getShouldTerminate() {
+            return false;
+        }
+
+        @Override
+        public Task getTask() {
+            return mRunnableTask;
+        }
+
+        @Override
+        public void run() {
+            switch (mEntryType) {
+            case SKIP_CHECK:
+                runSkipCheck();
+                break;
+
+            case ACTUAL_TASK:
+                runActualTask();
+                break;
+            }
+        }
+
+        private void runSkipCheck() {
+            final boolean canSkip;
+            try {
+                canSkip = mRunnableTask.getCanSkip();
+            } catch (Throwable e) {
+                ErrorLog.add("BaseTaskQueue: a skip check threw an exception", e);
+                return;
+            }
+
+            if (canSkip) {
+                // TODO: Remove debug prints
+                System.out.println("Skipping task: " + mRunnableTask.getName());
+
+                // Task is skippable -- call the continuation
+                if (mContinuation != null) {
+                    try {
+                        mContinuation.run();
+                    } catch (Throwable e) {
+                        ErrorLog.add("BaseTaskQueue: a task continuation thew an exception", e);
+                    }
+                }
+            } else {
+                // TODO: Remove debug prints
+                System.out.println("Re-enqueing actual task: " + mRunnableTask.getName());
+
+                // Task is not skippable -- re-enqueue to actually run
+                enqueue(new RunnableTaskQueueEntry(
+                        EntryType.ACTUAL_TASK, mPriority, mRunnableTask, mContinuation, false));
+            }
+        }
+
+        private void runActualTask() {
+            // TODO: Remove debug prints
+            System.out.println("Running task: " + mRunnableTask.getName());
+
+            onNewTask(mRunnableTask);
+
+            try {
+                mRunnableTask.run();
+            } catch (Throwable e) {
+                onTaskFailed(mRunnableTask, e);
+
+                if (!mIsRetry) {
+                    // Retry once automatically
+                    enqueue(new RunnableTaskQueueEntry(
+                            EntryType.ACTUAL_TASK, mPriority, mRunnableTask, mContinuation, true));
+                }
+                return;
+            }
+
+            // TODO: Remove debug prints
+            final StringBuilder sb = new StringBuilder();
+            sb.append("Outputs:");
+            try {
+                for (String output : mRunnableTask.getOutputs()) {
+                    sb.append(' ').append(output);
+                }
+            } catch (Throwable e) {
+                sb.append(" [").append(e.getMessage()).append("]");
+            }
+            System.out.println(sb.toString());
+
+            onTaskCompleted(mRunnableTask);
+
+            if (mContinuation != null) {
+                try {
+                    mContinuation.run();
+                } catch (Throwable e) {
+                    ErrorLog.add("BaseTaskQueue: a task continuation threw an exception", e);
+                }
+            }
+        }
+    }
+
+    private final PriorityBlockingQueue<QueueEntry> queue =
+        new PriorityBlockingQueue<QueueEntry>();
+
+    public void onNewTask(Task task) {
+        // TODO Auto-generated method stub
+
+    }
+
+    public void onTaskFailed(Task task, Throwable e) {
+        // TODO Auto-generated method stub
+
+    }
+
+    public void onTaskCompleted(Task task) {
+
+    }
+
+    public synchronized void enqueue(QueueEntry entry) {
+        queue.put(entry);
+    }
+
+    /**
+     * Enqueues a check date cache task.
+     */
+    public void enqueueModisCheckDateCache(ModisProduct product, DataDate startDate,
+            Action<DateCache> continuation) {
+        enqueue(new CallableTaskQueueEntry<DateCache>(
+                0,//Priority.DateCache.ordinal(),
+                new UpdateModisDateCacheTask(product, startDate),
+                continuation
+        ));
+    }
+
+    /**
+     * Enqueues a check tile cache task.
+     */
+    public void enqueueModisCheckTileCache(ModisProduct product, DataDate date,
+            Action<ModisTileCache> continuation) {
+        enqueue(new CallableTaskQueueEntry<ModisTileCache>(
+                0,//Priority.TileCache.ordinal(),
+                new UpdateModisTileCacheTask(product, date),
+                continuation
+        ));
+    }
+
+    /**
+     * Enqueues a download task.
+     */
+    public void enqueueModisDownload(ModisId modisId, Runnable continuation) {
+        enqueue(new RunnableTaskQueueEntry(
+                0,//Priority.Download.ordinal(),
+                new DownloadModisTask(modisId),
+                continuation
+        ));
+    }
+
+    public synchronized QueueEntry dequeue() throws InterruptedException {
+        return queue.take();
+    }
+
+}

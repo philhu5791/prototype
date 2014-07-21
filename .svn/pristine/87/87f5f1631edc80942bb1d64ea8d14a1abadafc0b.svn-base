@@ -1,0 +1,24 @@
+package edu.sdstate.eastweb.prototype.scheduler.framework;
+
+import java.io.IOException;
+import java.io.Serializable;
+import java.util.List;
+
+public interface Task extends Serializable {
+    public String getName();
+
+    /**
+     * Collects prerequisites by listing the contents of folders.
+     * WARNING: should only be called on the server side of the distributed
+     * system, where the canonical copy of the data exists.
+     */
+    public List<String> collectPrerequisites() throws IOException;
+
+    /**
+     * Returns the outputs of the task relative to the root directory.
+     * WARNING: should only be called after completing the task on the machine
+     * where the task was completed.
+     */
+    public List<String> getOutputs() throws IOException;
+
+}

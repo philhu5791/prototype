@@ -1,0 +1,23 @@
+# Args: [workspace] [shapefile] [field] [dataset] [output]
+
+import os.path
+import shutil
+import sys
+
+import arcpy
+from arcpy.sa import *
+
+arcpy.env.overwriteOutput = True
+
+print(sys.argv[1:])
+
+def process(workspace, shapefile, field, dataset, output):
+    arcpy.env.workspace = workspace
+    arcpy.CheckOutExtension("Spatial")
+
+    print "Computing zonal statistics..."
+    arcpy.env.extent = "MAXOF"
+    result = ZonalStatisticsAsTable(shapefile, field, dataset, output, "DATA", "ALL")
+
+process(*sys.argv[1:])
+print "done"

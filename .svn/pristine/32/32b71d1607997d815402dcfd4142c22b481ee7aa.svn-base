@@ -1,0 +1,102 @@
+package edu.sdstate.eastweb.prototype.scheduler.tasks;
+
+import java.io.*;
+import java.util.*;
+
+import org.apache.commons.io.FileUtils;
+import edu.sdstate.eastweb.prototype.*;
+import edu.sdstate.eastweb.prototype.download.TrmmDownloadMetadata;
+import edu.sdstate.eastweb.prototype.reprojection.*;
+import edu.sdstate.eastweb.prototype.scheduler.framework.RunnableTask;
+import edu.sdstate.eastweb.prototype.util.FileHelper;
+
+public class ReprojectTrmmTask implements RunnableTask {
+    /**
+     * 
+     */
+    private static final long serialVersionUID = 1L;
+    private final ProjectInfo mProject;
+    private final DataDate mDate;
+
+    public ReprojectTrmmTask(ProjectInfo project, DataDate date) {
+        mProject = project;
+        mDate = date;
+    }
+
+    private File getInputFile() throws ConfigReadException {
+        return DirectoryLayout.getTrmmDownload(mDate);
+    }
+
+    private File getOutputFile() throws ConfigReadException {
+        return DirectoryLayout.getTrmmReprojected(mProject, mDate);
+    }
+
+    private File getMetadataFile() throws ConfigReadException {
+        return DirectoryLayout.getTrmmReprojectedMetadata(mProject, mDate);
+    }
+
+    private TrmmReprojectedMetadata makeMetadata() throws IOException {
+        final TrmmDownloadMetadata download = TrmmDownloadMetadata.fromFile(
+                DirectoryLayout.getTrmmDownloadMetadata(mDate));
+
+        final long timestamp = new Date().getTime();
+
+        return new TrmmReprojectedMetadata(download, timestamp);
+    }
+
+    @Override
+    public boolean getCanSkip() {
+        try {
+            return TrmmReprojectedMetadata.fromFile(getMetadataFile()).equalsIgnoreTimestamp(makeMetadata());
+        } catch (IOException e) {
+            return false;
+        }
+    }
+
+    private File makeWorkspace() throws IOException {
+        final File workspace = File.createTempFile("wksp", null);
+        FileUtils.forceDelete(workspace);
+        FileUtils.forceMkdir(workspace);
+        return workspace;
+    }
+
+    @Override
+    public void run() throws Exception {
+        final File workspace = makeWorkspace();
+        try {
+            final File inFile = getInputFile();
+            final File outFile = getOutputFile();
+            FileUtils.forceMkdir(outFile.getParentFile());
+            new TrmmReprojection()
+            .reprojectTrmm(workspace, inFile, mProject.getProjection(), outFile);
+        } finally {
+            FileUtils.deleteQuietly(workspace);
+        }
+
+        // Write a metadata file
+        final File metadataFile = getMetadataFile();
+        FileUtils.forceMkdir(metadataFile.getParentFile());
+        makeMetadata().toFile(metadataFile);
+    }
+
+    @Override
+    public String getName() {
+        return String.format(
+                "Reproject TRMM: project=\"%s\", date=%s",
+                mProject.getName(),
+                mDate.toCompactString()
+        );
+    }
+
+    @Override
+    public List<String> getOutputs() throws IOException {
+        // The output directory should include the metadata file
+        return FileHelper.getRelativeFilenames(
+                Config.getInstance().getRootDirectory(),
+                FileHelper.listAllFilenames(
+                        DirectoryLayout.getTrmmReprojected(mProject, mDate).getParentFile()
+                )
+        );
+    }
+
+}

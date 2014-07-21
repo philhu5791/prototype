@@ -1,0 +1,35 @@
+# Args: [trmm] [input coordinate system .prj] [output coordinate system .prj] [resampling type] [cell size] [transform] [output]
+# Desc: Converts the specified TRMM raster from NetCDF and reprojects it.
+
+import sys
+import arcpy
+
+arcpy.env.overwriteOutput = True
+
+_, arcpy.env.workspace, trmm, inCS, outCS, resamplingType, cellSize, transform, output = sys.argv
+
+print("Converting from NetCDF...")
+layer = arcpy.MakeNetCDFRasterLayer_md(
+    trmm, 
+    "hrf",
+    "longitude",
+    "latitude",
+    "hrf_Layer"
+    )
+
+
+temp = arcpy.CopyRaster_management(layer, "temp")
+
+print("Reprojecting...")
+arcpy.ProjectRaster_management(
+    temp,
+    output,
+    outCS,
+    resamplingType,
+    cellSize,
+    transform,
+    "#",
+    inCS
+)
+
+arcpy.Delete_management(temp)
